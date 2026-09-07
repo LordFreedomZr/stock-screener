@@ -6,6 +6,15 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Input validation
+function validateTicker(ticker: unknown): ticker is string {
+  return typeof ticker === 'string' && ticker.length > 0 && ticker.length <= 10 && /^[A-Z0-9]+$/.test(ticker);
+}
+
+function validateAction(action: unknown): action is 'add' | 'stop' {
+  return action === 'add' || action === 'stop';
+}
+
 export async function GET() {
   try {
     const { data, error } = await supabase
@@ -13,30 +22,43 @@ export async function GET() {
       .select('*')
       .order('marked_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch watchlist' },
+        { status: 500 }
+      );
+    }
 
     const itemsWithEvaluation = await Promise.all(
       (data || []).map(async (item: any) => {
-        const { data: evalData } = await supabase
-          .from('watchlist_evaluations')
-          .select('*')
-          .eq('watchlist_item_id', item.id)
-          .order('timestamp', { ascending: false })
-          .limit(1)
-          .single();
+        try {
+          const { data: evalData } = await supabase
+            .from('watchlist_evaluations')
+            .select('*')
+            .eq('watchlist_item_id', item.id)
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .maybeSingle(); // Use maybeSingle instead of single
 
-        return {
-          ...item,
-          latest_evaluation: evalData || null,
-        };
+          return {
+            ...item,
+            latest_evaluation: evalData || null,
+          };
+        } catch (err) {
+          return {
+            ...item,
+            latest_evaluation: null,
+          };
+        }
       })
     );
 
-    return NextResponse.json(itemsWithEvaluation);
+    return NextResponse.json({ success: true, data: itemsWithEvaluation });
   } catch (error) {
     console.error('Error fetching watchlist:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch watchlist' },
+      { success: false, error: 'Failed to fetch watchlist' },
       { status: 500 }
     );
   }
@@ -47,16 +69,53 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { ticker, action } = body;
 
+    // Validate inputs
+    if (!validateTicker(ticker)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ticker format' },
+        { status: 400 }
+      );
+    }
+
+    if (!validateAction(action)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid action. Must be "add" or "stop"' },
+        { status: 400 }
+      );
+    }
+
     if (action === 'add') {
+      // Check if already in watchlist
+      const { data: existing } = await supabase
+        .from('watchlist_items')
+        .select('id')
+        .eq('ticker', ticker)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Stock already in watchlist' },
+          { status: 409 }
+        );
+      }
+
       const { data, error } = await supabase
         .from('watchlist_items')
         .insert({ ticker, status: 'active' })
         .select()
         .single();
 
-      if (error) throw error;
-      return NextResponse.json(data);
-    } else if (action === 'stop') {
+      if (error) {
+        console.error('Supabase error:', error);
+        return NextResponse.json(
+          { success: false, error: 'Failed to add to watchlist' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true, data });
+    } else {
       const { data, error } = await supabase
         .from('watchlist_items')
         .update({ status: 'stopped', stopped_at: new Date().toISOString() })
@@ -65,18 +124,27 @@ export async function POST(request: Request) {
         .select()
         .single();
 
-      if (error) throw error;
-      return NextResponse.json(data);
-    }
+      if (error) {
+        console.error('Supabase error:', error);
+        return NextResponse.json(
+          { success: false, error: 'Failed to stop watchlist item' },
+          { status: 500 }
+        );
+      }
 
-    return NextResponse.json(
-      { error: 'Invalid action' },
-      { status: 400 }
-    );
+      if (!data) {
+        return NextResponse.json(
+          { success: false, error: 'Watchlist item not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ success: true, data });
+    }
   } catch (error) {
     console.error('Error updating watchlist:', error);
     return NextResponse.json(
-      { error: 'Failed to update watchlist' },
+      { success: false, error: 'Failed to update watchlist' },
       { status: 500 }
     );
   }

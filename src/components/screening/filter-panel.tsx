@@ -16,7 +16,24 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
-    const numValue = value === '' ? null : parseFloat(value);
+    // Handle empty value
+    if (value === '') {
+      onFiltersChange({ ...filters, [key]: null });
+      return;
+    }
+
+    const numValue = parseFloat(value);
+    
+    // Validate: must be a valid number and not NaN
+    if (isNaN(numValue)) {
+      return; // Ignore invalid input
+    }
+
+    // Validate: must be non-negative for most filters
+    if (numValue < 0) {
+      return; // Ignore negative values
+    }
+
     onFiltersChange({ ...filters, [key]: numValue });
   };
 
@@ -76,6 +93,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 <Input
                   type="number"
                   placeholder="Min"
+                  min="0"
                   value={filters.priceMin ?? ''}
                   onChange={(e) => updateFilter('priceMin', e.target.value)}
                   className="h-8 text-xs"
@@ -84,6 +102,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 <Input
                   type="number"
                   placeholder="Max"
+                  min="0"
                   value={filters.priceMax ?? ''}
                   onChange={(e) => updateFilter('priceMax', e.target.value)}
                   className="h-8 text-xs"
@@ -97,6 +116,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Input
                 type="number"
                 placeholder="Min volume"
+                min="0"
                 value={filters.volumeMin ?? ''}
                 onChange={(e) => updateFilter('volumeMin', e.target.value)}
                 className="h-8 text-xs"
@@ -109,6 +129,8 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Input
                 type="number"
                 placeholder="Max loss %"
+                min="0"
+                max="100"
                 value={filters.maxLossPercent ?? ''}
                 onChange={(e) => updateFilter('maxLossPercent', e.target.value)}
                 className="h-8 text-xs"
@@ -121,6 +143,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Input
                 type="number"
                 placeholder="Max loss nominal"
+                min="0"
                 value={filters.maxLossNominal ?? ''}
                 onChange={(e) => updateFilter('maxLossNominal', e.target.value)}
                 className="h-8 text-xs"
@@ -133,6 +156,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Input
                 type="number"
                 placeholder="Max profit %"
+                min="0"
                 value={filters.maxProfitPercent ?? ''}
                 onChange={(e) => updateFilter('maxProfitPercent', e.target.value)}
                 className="h-8 text-xs"
@@ -145,6 +169,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Input
                 type="number"
                 placeholder="Max profit nominal"
+                min="0"
                 value={filters.maxProfitNominal ?? ''}
                 onChange={(e) => updateFilter('maxProfitNominal', e.target.value)}
                 className="h-8 text-xs"

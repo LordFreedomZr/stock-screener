@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { StockChart } from '@/components/charts/stock-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScreeningResult, PriceSnapshot } from '@/types';
-import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor, formatDate } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor } from '@/lib/utils';
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
   Zap, Target, Shield, Clock, RefreshCw 
@@ -25,12 +25,21 @@ export default function StockDetailPage() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setFetching(true);
     try {
       // Fetch screening data for this ticker
-      const screeningResponse = await fetch('/api/screening');
+      const screeningResponse = await fetch('/api/screening', {
+        signal: abortControllerRef.current.signal,
+      });
       const screeningData = await screeningResponse.json();
       
       if (screeningData.success && screeningData.data) {
@@ -41,13 +50,18 @@ export default function StockDetailPage() {
       }
 
       // Fetch price history for chart
-      const historyResponse = await fetch(`/api/history/${ticker}`);
+      const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}`, {
+        signal: abortControllerRef.current.signal,
+      });
       const historyData = await historyResponse.json();
       
       if (historyData.success && historyData.data) {
         setPriceData(historyData.data as PriceSnapshot[]);
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
       console.error('Error fetching stock data:', error);
     } finally {
       setLoading(false);
@@ -57,33 +71,30 @@ export default function StockDetailPage() {
 
   useEffect(() => {
     fetchData();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchData]);
 
   const toggleWatchlist = async () => {
     setWatchlistLoading(true);
     try {
-      if (isInWatchlist) {
-        // Remove from watchlist
-        const response = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker, action: 'stop' }),
-        });
-        const data = await response.json();
-        if (data.success) {
-          setIsInWatchlist(false);
-        }
+      const action = isInWatchlist ? 'stop' : 'add';
+      
+      const response = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, action }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setIsInWatchlist(!isInWatchlist);
       } else {
-        // Add to watchlist
-        const response = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker, action: 'add' }),
-        });
-        const data = await response.json();
-        if (data.success) {
-          setIsInWatchlist(true);
-        }
+        console.error('Failed to update watchlist:', data.error);
       }
     } catch (error) {
       console.error('Error toggling watchlist:', error);
@@ -125,7 +136,6 @@ export default function StockDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -169,12 +179,11 @@ export default function StockDetailPage() {
             disabled={watchlistLoading}
           >
             <Star className={`w-4 h-4 mr-2 ${isInWatchlist ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-            {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+            {watchlistLoading ? 'Loading...' : isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
           </Button>
         </div>
       </div>
 
-      {/* Price & Score */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -214,7 +223,6 @@ export default function StockDetailPage() {
         </Card>
       </div>
 
-      {/* Chart */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -227,7 +235,6 @@ export default function StockDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Technical Indicators */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -295,7 +302,6 @@ export default function StockDetailPage() {
         </Card>
       </div>
 
-      {/* Volume & Turnover */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">

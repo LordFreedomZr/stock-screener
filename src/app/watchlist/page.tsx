@@ -1,89 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WatchlistCard } from '@/components/watchlist/watchlist-card';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WatchlistItem } from '@/types';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
 import { Star, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('all');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchWatchlist = async () => {
-    setLoading(true);
+  const fetchWatchlist = useCallback(async () => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setFetching(true);
     try {
-      let query = supabase
-        .from('watchlist_items')
-        .select('*')
-        .order('marked_at', { ascending: false });
+      const response = await fetch('/api/watchlist', {
+        signal: abortControllerRef.current.signal,
+      });
+      const data = await response.json();
 
-      if (filter !== 'all') {
-        query = query.eq('status', filter);
+      if (data.success && data.data) {
+        setItems(data.data);
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const itemsWithEvaluation = await Promise.all(
-        (data || []).map(async (item: any) => {
-          const { data: evalData } = await supabase
-            .from('watchlist_evaluations')
-            .select('*')
-            .eq('watchlist_item_id', item.id)
-            .order('timestamp', { ascending: false })
-            .limit(1)
-            .single();
-
-          return {
-            ...item,
-            latest_evaluation: evalData || undefined,
-          } as WatchlistItem;
-        })
-      );
-
-      setItems(itemsWithEvaluation);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        // Request was cancelled, ignore
+        return;
+      }
       console.error('Error fetching watchlist:', error);
     } finally {
       setLoading(false);
+      setFetching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchWatchlist();
-  }, [filter]);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchWatchlist]);
 
   const handleStop = async (ticker: string) => {
     try {
-      await supabase
-        .from('watchlist_items')
-        .update({ status: 'stopped', stopped_at: new Date().toISOString() })
-        .eq('ticker', ticker)
-        .eq('status', 'active');
+      const response = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, action: 'stop' }),
+      });
 
-      fetchWatchlist();
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        setItems(prev =>
+          prev.map(item =>
+            item.ticker === ticker
+              ? { ...item, status: 'stopped' as const }
+              : item
+          )
+        );
+      } else {
+        console.error('Failed to stop:', data.error);
+      }
     } catch (error) {
       console.error('Error stopping watchlist item:', error);
     }
   };
 
-  const activeCount = items.filter((i) => i.status === 'active').length;
-  const stoppedCount = items.filter((i) => i.status === 'stopped').length;
+  const filteredItems = items.filter(item => {
+    if (filter === 'all') return true;
+    return item.status === filter;
+  });
+
+  const activeCount = items.filter(i => i.status === 'active').length;
+  const stoppedCount = items.filter(i => i.status === 'stopped').length;
 
   const stats = {
-    benar: items.filter((i) => i.latest_evaluation?.status === 'benar').length,
-    floating: items.filter((i) => i.latest_evaluation?.status === 'floating').length,
-    meleset: items.filter((i) => i.latest_evaluation?.status === 'meleset').length,
+    benar: items.filter(i => i.latest_evaluation?.status === 'benar').length,
+    floating: items.filter(i => i.latest_evaluation?.status === 'floating').length,
+    meleset: items.filter(i => i.latest_evaluation?.status === 'meleset').length,
   };
 
   return (
@@ -99,9 +108,9 @@ export default function WatchlistPage() {
           variant="outline"
           size="sm"
           onClick={fetchWatchlist}
-          disabled={loading}
+          disabled={fetching}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
@@ -149,7 +158,7 @@ export default function WatchlistPage() {
       </div>
 
       <div className="flex gap-2">
-        {(['all', 'active', 'stopped'] as const).map((tab) => (
+        {(['all', 'active', 'stopped'] as const).map(tab => (
           <Button
             key={tab}
             variant={filter === tab ? 'default' : 'ghost'}
@@ -185,7 +194,7 @@ export default function WatchlistPage() {
             </Card>
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-12 text-center">
             <Star className="w-12 h-12 mx-auto mb-4 text-gray-600" />
@@ -199,7 +208,7 @@ export default function WatchlistPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
+          {filteredItems.map(item => (
             <WatchlistCard key={item.id} item={item} onStop={handleStop} />
           ))}
         </div>

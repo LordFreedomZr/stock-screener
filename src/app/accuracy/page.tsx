@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,16 @@ import { BarChart3, TrendingUp, TrendingDown, Activity, RefreshCw, Target } from
 export default function AccuracyPage() {
   const [stats, setStats] = useState<AccuracyStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchStats = async () => {
-    setLoading(true);
+  const fetchStats = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setFetching(true);
     try {
       const { data, error } = await supabase
         .from('accuracy_stats')
@@ -28,12 +35,18 @@ export default function AccuracyPage() {
       console.error('Error fetching accuracy stats:', error);
     } finally {
       setLoading(false);
+      setFetching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchStats]);
 
   const totalEvaluations = stats.reduce((sum, s) => sum + s.total_evaluations, 0);
   const totalCorrect = stats.reduce((sum, s) => sum + s.correct_count, 0);
@@ -43,7 +56,6 @@ export default function AccuracyPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Accuracy Dashboard</h1>
@@ -55,14 +67,13 @@ export default function AccuracyPage() {
           variant="outline"
           size="sm"
           onClick={fetchStats}
-          disabled={loading}
+          disabled={fetching}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {/* Overall Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -124,7 +135,6 @@ export default function AccuracyPage() {
         </Card>
       </div>
 
-      {/* Top Performing Indicators */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -184,7 +194,6 @@ export default function AccuracyPage() {
         </CardContent>
       </Card>
 
-      {/* All Stats Table */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">

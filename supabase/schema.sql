@@ -1,4 +1,4 @@
--- Database schema for Stock Screener IDX
+-- Fixed database schema with proper RLS policies
 -- Run this in Supabase SQL Editor
 
 -- Enable UUID extension
@@ -54,14 +54,15 @@ CREATE TABLE IF NOT EXISTS screening_results (
   FOREIGN KEY (ticker) REFERENCES stocks(ticker)
 );
 
--- Watchlist items table
+-- Watchlist items table with UNIQUE constraint
 CREATE TABLE IF NOT EXISTS watchlist_items (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   ticker VARCHAR(10) NOT NULL,
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'stopped')),
   marked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   stopped_at TIMESTAMP WITH TIME ZONE,
-  FOREIGN KEY (ticker) REFERENCES stocks(ticker)
+  FOREIGN KEY (ticker) REFERENCES stocks(ticker),
+  UNIQUE(ticker) -- Only one active entry per ticker
 );
 
 -- Watchlist evaluations table
@@ -125,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items(ticker)
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_status ON watchlist_items(status);
 CREATE INDEX IF NOT EXISTS idx_watchlist_evaluations_watchlist_item_id ON watchlist_evaluations(watchlist_item_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_evaluations_timestamp ON watchlist_evaluations(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_threshold_configs_created_at ON threshold_configs(created_at DESC);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE stocks ENABLE ROW LEVEL SECURITY;
@@ -135,14 +137,40 @@ ALTER TABLE watchlist_evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE threshold_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accuracy_stats ENABLE ROW LEVEL SECURITY;
 
--- Create policies (allow all for now, since this is a personal app)
-CREATE POLICY "Allow all on stocks" ON stocks FOR ALL USING (true);
-CREATE POLICY "Allow all on price_snapshots" ON price_snapshots FOR ALL USING (true);
-CREATE POLICY "Allow all on screening_results" ON screening_results FOR ALL USING (true);
-CREATE POLICY "Allow all on watchlist_items" ON watchlist_items FOR ALL USING (true);
-CREATE POLICY "Allow all on watchlist_evaluations" ON watchlist_evaluations FOR ALL USING (true);
-CREATE POLICY "Allow all on threshold_configs" ON threshold_configs FOR ALL USING (true);
-CREATE POLICY "Allow all on accuracy_stats" ON accuracy_stats FOR ALL USING (true);
+-- Drop existing permissive policies
+DROP POLICY IF EXISTS "Allow all on stocks" ON stocks;
+DROP POLICY IF EXISTS "Allow all on price_snapshots" ON price_snapshots;
+DROP POLICY IF EXISTS "Allow all on screening_results" ON screening_results;
+DROP POLICY IF EXISTS "Allow all on watchlist_items" ON watchlist_items;
+DROP POLICY IF EXISTS "Allow all on watchlist_evaluations" ON watchlist_evaluations;
+DROP POLICY IF EXISTS "Allow all on threshold_configs" ON threshold_configs;
+DROP POLICY IF EXISTS "Allow all on accuracy_stats" ON accuracy_stats;
+
+-- SECURE RLS Policies
+
+-- Stocks: Anyone can read, no one can modify via API
+CREATE POLICY "stocks_select" ON stocks FOR SELECT USING (true);
+
+-- Price snapshots: Anyone can read, no one can modify via API
+CREATE POLICY "price_snapshots_select" ON price_snapshots FOR SELECT USING (true);
+
+-- Screening results: Anyone can read, no one can modify via API
+CREATE POLICY "screening_results_select" ON screening_results FOR SELECT USING (true);
+
+-- Watchlist items: Anyone can read and modify (personal app, no auth)
+CREATE POLICY "watchlist_select" ON watchlist_items FOR SELECT USING (true);
+CREATE POLICY "watchlist_insert" ON watchlist_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "watchlist_update" ON watchlist_items FOR UPDATE USING (true);
+
+-- Watchlist evaluations: Anyone can read and insert
+CREATE POLICY "evaluations_select" ON watchlist_evaluations FOR SELECT USING (true);
+CREATE POLICY "evaluations_insert" ON watchlist_evaluations FOR INSERT WITH CHECK (true);
+
+-- Threshold configs: Anyone can read, no one can modify via API
+CREATE POLICY "configs_select" ON threshold_configs FOR SELECT USING (true);
+
+-- Accuracy stats: Anyone can read, no one can modify via API
+CREATE POLICY "stats_select" ON accuracy_stats FOR SELECT USING (true);
 
 -- Insert default threshold config
 INSERT INTO threshold_configs (version) VALUES ('1.0.0') ON CONFLICT DO NOTHING;

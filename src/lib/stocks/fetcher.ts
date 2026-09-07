@@ -8,6 +8,11 @@ import {
   calculateOBV,
   calculateScore,
 } from './indicators';
+import {
+  getTradingViewClient,
+  TradingViewQuote,
+  TradingViewStockPricesResponse,
+} from './tradingview';
 
 export interface ScoreConfig {
   rsi_period: number;
@@ -80,7 +85,38 @@ export interface VolumeSpikeResult {
   spikeVs5dAvg: number;
 }
 
-export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
+export interface QuoteResult {
+  quote: YahooQuote | null;
+  dataSource: 'tradingview' | 'yahoo';
+}
+
+export async function fetchQuote(ticker: string): Promise<QuoteResult> {
+  // Try TradingView MCP first
+  try {
+    const tvClient = getTradingViewClient();
+    const tvQuote = await tvClient.yahooPrice(ticker);
+    
+    if (tvQuote && tvQuote.price > 0) {
+      const quote: YahooQuote = {
+        symbol: ticker,
+        price: tvQuote.price,
+        change: tvQuote.price * (tvQuote.change_percent / 100),
+        changePercent: tvQuote.change_percent,
+        volume: 0, // TradingView doesn't provide volume in yahoo_price
+        avgVolume: 0,
+        high: tvQuote.high || tvQuote.price,
+        low: tvQuote.low || tvQuote.price,
+        open: tvQuote.open || tvQuote.price,
+        previousClose: tvQuote.price / (1 + tvQuote.change_percent / 100),
+        marketCap: 0,
+      };
+      return { quote, dataSource: 'tradingview' };
+    }
+  } catch (error) {
+    console.warn(`TradingView MCP failed for ${ticker}, falling back to Yahoo:`, error);
+  }
+
+  // Fallback to Yahoo Finance
   try {
     const yahooTicker = toYahooTicker(ticker);
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`;
@@ -91,12 +127,12 @@ export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
       },
     });
     
-    if (!response.ok) return null;
+    if (!response.ok) return { quote: null, dataSource: 'yahoo' };
     
     const data = await response.json();
     const result = data.chart?.result?.[0];
     
-    if (!result) return null;
+    if (!result) return { quote: null, dataSource: 'yahoo' };
     
     const meta = result.meta;
     const quote: YahooQuote = {
@@ -115,10 +151,10 @@ export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
       marketCap: meta.marketCap || 0,
     };
     
-    return quote;
+    return { quote, dataSource: 'yahoo' };
   } catch (error) {
     console.error(`Error fetching quote for ${ticker}:`, error);
-    return null;
+    return { quote: null, dataSource: 'yahoo' };
   }
 }
 
@@ -180,11 +216,12 @@ export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONF
     const batchResults = await Promise.all(
       batch.map(async (stock) => {
         try {
-          const [quote, history] = await Promise.all([
+          const [quoteResult, history] = await Promise.all([
             fetchQuote(stock.ticker),
             fetchHistory(stock.ticker, '3mo', '1d'),
           ]);
           
+          const { quote, dataSource } = quoteResult;
           if (!quote || history.length === 0) return null;
           
           const closes = history.map(h => h.close);
@@ -254,6 +291,7 @@ export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONF
             max_profit_nominal: maxProfitNominal,
             max_loss_percent: maxLossPercent,
             max_loss_nominal: maxLossNominal,
+            dataSource,
             volume_spike: {
               yesterday: yesterdayVol > 0 ? Math.round(((currentVol - yesterdayVol) / yesterdayVol) * 100) : 0,
               avg_3d: avg3d > 0 ? Math.round(((currentVol - avg3d) / avg3d) * 100) : 0,

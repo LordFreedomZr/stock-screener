@@ -157,10 +157,14 @@ export default function StockDetailPage() {
                 )}
                 {result.direction}
               </Badge>
+              <div 
+                className={`w-2 h-2 rounded-full ${result.dataSource === 'tradingview' ? 'bg-cyan-400' : 'bg-yellow-400'}`}
+                title={result.dataSource === 'tradingview' ? 'TradingView MCP' : 'Yahoo Finance'}
+              />
             </div>
             <p className="text-gray-500 flex items-center gap-2 mt-1">
               <Clock className="w-4 h-4" />
-              Real-time data
+              Real-time data from {result.dataSource === 'tradingview' ? 'TradingView MCP' : 'Yahoo Finance'}
             </p>
           </div>
         </div>

@@ -24,9 +24,15 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                 <span className="text-sm font-bold text-cyan-400">{result.ticker.slice(0, 2)}</span>
               </div>
               <div>
-                <CardTitle className="text-lg group-hover:text-cyan-400 transition-colors">
-                  {result.ticker}
-                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg group-hover:text-cyan-400 transition-colors">
+                    {result.ticker}
+                  </CardTitle>
+                  <div 
+                    className={`w-1.5 h-1.5 rounded-full ${result.dataSource === 'tradingview' ? 'bg-cyan-400' : 'bg-yellow-400'}`}
+                    title={result.dataSource === 'tradingview' ? 'TradingView MCP' : 'Yahoo Finance'}
+                  />
+                </div>
                 <p className="text-sm text-gray-500">
                   {formatCurrency(result.price)}
                 </p>

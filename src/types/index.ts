@@ -42,6 +42,7 @@ export interface ScreeningResult {
   max_loss_nominal: number;
   volume: number;
   config_version: string;
+  dataSource: 'tradingview' | 'yahoo';
   volume_spike?: {
     yesterday: number;
     avg_3d: number;

@@ -12,6 +12,12 @@ import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, Chev
 
 type SpikeTab = 'yesterday' | '3d' | '5d';
 
+interface DataSourceInfo {
+  primary: 'tradingview' | 'yahoo';
+  tradingview: number;
+  yahoo: number;
+}
+
 export default function DashboardPage() {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [filters, setFilters] = useState<FilterState>({
@@ -30,6 +36,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [spikeTab, setSpikeTab] = useState<SpikeTab>('yesterday');
   const [spikeExpanded, setSpikeExpanded] = useState(false);
+  const [dataSource, setDataSource] = useState<DataSourceInfo | null>(null);
 
   const fetchScreeningResults = useCallback(async () => {
     setFetching(true);
@@ -41,6 +48,9 @@ export default function DashboardPage() {
       if (data.success && data.data) {
         setResults(data.data);
         setLastUpdate(new Date());
+        if (data.dataSource) {
+          setDataSource(data.dataSource);
+        }
       } else {
         setError(data.error || 'Failed to fetch data');
       }
@@ -276,9 +286,26 @@ export default function DashboardPage() {
       {/* Data Source Info */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardContent className="p-4">
-          <p className="text-xs text-gray-500 text-center">
-            Data source: Yahoo Finance | 40+ IDX stocks | Real-time quotes
-          </p>
+          <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${dataSource?.primary === 'tradingview' ? 'bg-cyan-400' : 'bg-yellow-400'}`} />
+              <span>
+                Data source: {dataSource?.primary === 'tradingview' ? 'TradingView MCP' : 'Yahoo Finance'}
+              </span>
+            </div>
+            {dataSource && (
+              <>
+                <span>|</span>
+                <span>
+                  TradingView: {dataSource.tradingview} | Yahoo: {dataSource.yahoo}
+                </span>
+              </>
+            )}
+            <span>|</span>
+            <span>200+ IDX stocks</span>
+            <span>|</span>
+            <span>Real-time quotes</span>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -371,6 +371,7 @@ function SpikeContent({
                     )}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{item.name}</p>
+                  <p className="text-xs text-cyan-400 font-medium">{formatCurrency(item.price)}</p>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center gap-1 justify-end">

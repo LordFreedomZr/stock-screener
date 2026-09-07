@@ -85,21 +85,50 @@ export async function POST(request: Request) {
     }
 
     if (action === 'add') {
-      // Check if already in watchlist
-      const { data: existing } = await supabase
+      // Check if already active in watchlist
+      const { data: existingActive } = await supabase
         .from('watchlist_items')
         .select('id')
         .eq('ticker', ticker)
         .eq('status', 'active')
         .limit(1);
 
-      if (existing && existing.length > 0) {
+      if (existingActive && existingActive.length > 0) {
         return NextResponse.json(
           { success: false, error: 'Stock already in watchlist' },
           { status: 409 }
         );
       }
 
+      // Check if there's a stopped item - reactivate it
+      const { data: existingStopped } = await supabase
+        .from('watchlist_items')
+        .select('id')
+        .eq('ticker', ticker)
+        .eq('status', 'stopped')
+        .limit(1);
+
+      if (existingStopped && existingStopped.length > 0) {
+        // Reactivate the stopped item
+        const { data, error } = await supabase
+          .from('watchlist_items')
+          .update({ status: 'active', stopped_at: null })
+          .eq('id', existingStopped[0].id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase error:', error);
+          return NextResponse.json(
+            { success: false, error: 'Failed to reactivate watchlist item' },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({ success: true, data });
+      }
+
+      // Create new watchlist item
       const { data, error } = await supabase
         .from('watchlist_items')
         .insert({ ticker, status: 'active' })

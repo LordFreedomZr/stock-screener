@@ -71,12 +71,29 @@ export default function StockDetailPage() {
 
   useEffect(() => {
     fetchData();
+    
+    // Check if stock is in watchlist
+    const checkWatchlist = async () => {
+      try {
+        const response = await fetch('/api/watchlist');
+        const data = await response.json();
+        if (data.success && data.data) {
+          const inWatchlist = data.data.some((item: any) => item.ticker === ticker && item.status === 'active');
+          setIsInWatchlist(inWatchlist);
+        }
+      } catch (error) {
+        console.error('Error checking watchlist:', error);
+      }
+    };
+    
+    checkWatchlist();
+    
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchData]);
+  }, [fetchData, ticker]);
 
   const toggleWatchlist = async () => {
     setWatchlistLoading(true);

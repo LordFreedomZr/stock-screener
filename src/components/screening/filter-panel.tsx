@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilterState } from '@/types';
-import { SlidersHorizontal, X, Minimize2, Search } from 'lucide-react';
+import { SlidersHorizontal, X, Minus, Search } from 'lucide-react';
 
 interface FilterPanelProps {
   filters: FilterState;
@@ -16,29 +16,18 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
-    // Handle empty value
     if (value === '') {
       onFiltersChange({ ...filters, [key]: null });
       return;
     }
 
-    // Handle search query (string)
     if (key === 'searchQuery') {
       onFiltersChange({ ...filters, [key]: value });
       return;
     }
 
     const numValue = parseFloat(value);
-    
-    // Validate: must be a valid number and not NaN
-    if (isNaN(numValue)) {
-      return; // Ignore invalid input
-    }
-
-    // Validate: must be non-negative for most filters
-    if (numValue < 0) {
-      return; // Ignore negative values
-    }
+    if (isNaN(numValue) || numValue < 0) return;
 
     onFiltersChange({ ...filters, [key]: numValue });
   };
@@ -60,7 +49,12 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
   return (
     <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
-      <CardHeader className="pb-3">
+      <CardHeader
+        className="pb-3 cursor-pointer select-none"
+        onClick={() => {
+          if (!isOpen) setIsOpen(true);
+        }}
+      >
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
@@ -76,27 +70,34 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={clearFilters}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearFilters();
+                }}
                 className="text-gray-400 hover:text-white"
               >
                 <X className="w-4 h-4 mr-1" />
                 Clear
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsOpen(!isOpen)}
-              className="text-gray-400 hover:text-white"
-            >
-              <Minimize2 className={`w-4 h-4 transition-transform ${isOpen ? '' : 'rotate-45'}`} />
-            </Button>
+            {isOpen && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
       {isOpen && (
-        <CardContent className="space-y-4">
-          {/* Search by ticker/name */}
+        <CardContent className="space-y-4 pt-0">
           <div className="space-y-2">
             <label className="text-xs text-gray-500 uppercase tracking-wider">
               Search Stock

@@ -75,8 +75,9 @@ function determineEvaluationStatus(
 export async function GET(request: Request) {
   try {
     // Verify cron secret (for security)
+    const expectedSecret = process.env.CRON_SECRET || 'screener_secret_key_2026';
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }

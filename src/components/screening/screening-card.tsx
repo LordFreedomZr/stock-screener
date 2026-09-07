@@ -1,22 +1,62 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScreeningResult } from '@/types';
-import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor } from '@/lib/utils';
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  getScoreColor,
+  getDirectionColor,
+} from '@/lib/utils';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, BarChart3, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Activity, Star } from 'lucide-react';
 
 interface ScreeningCardProps {
   result: ScreeningResult;
 }
 
 export function ScreeningCard({ result }: ScreeningCardProps) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const isBullish = result.direction === 'bullish';
+
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (saving) return;
+
+    setSaving(true);
+    try {
+      const action = saved ? 'stop' : 'add';
+      const payload: any = { ticker: result.ticker, action };
+      if (action === 'add') {
+        payload.price = result.price;
+        payload.score = result.score;
+        payload.direction = result.direction;
+      }
+
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaved(!saved);
+      }
+    } catch (err) {
+      console.error('Error in quick add to watchlist:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Link href={`/stock/${result.ticker}`}>
-      <Card className="hover:border-cyan-500/50 hover:shadow-cyan-500/10 transition-all duration-300 cursor-pointer group">
+      <Card className="hover:border-cyan-500/50 hover:shadow-cyan-500/10 transition-all duration-300 cursor-pointer group relative">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -24,12 +64,24 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                 <span className="text-sm font-bold text-cyan-400">{result.ticker.slice(0, 2)}</span>
               </div>
               <div>
-                <CardTitle className="text-lg group-hover:text-cyan-400 transition-colors">
-                  {result.ticker}
-                </CardTitle>
-                <p className="text-sm text-gray-500">
-                  {formatCurrency(result.price)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg group-hover:text-cyan-400 transition-colors">
+                    {result.ticker}
+                  </CardTitle>
+                  <button
+                    onClick={handleQuickAdd}
+                    disabled={saving}
+                    title={saved ? 'Tersimpan di Watchlist' : 'Tambah ke Watchlist'}
+                    className="p-1 text-gray-500 hover:text-yellow-400 transition-colors"
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        saved ? 'fill-yellow-400 text-yellow-400' : 'hover:fill-yellow-400/40'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500">{formatCurrency(result.price)}</p>
               </div>
             </div>
             <div className="text-right">
@@ -64,23 +116,17 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                   <BarChart3 className="w-3 h-3" />
                   Volume
                 </span>
-                <span className="text-white">
-                  {formatNumber(result.volume)}
-                </span>
+                <span className="text-white">{formatNumber(result.volume)}</span>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RSI</span>
-                <span className="text-white">
-                  {result.rsi.toFixed(1)}
-                </span>
+                <span className="text-white">{result.rsi.toFixed(1)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RVOL</span>
-                <span className="text-white">
-                  {result.rvol.toFixed(2)}x
-                </span>
+                <span className="text-white">{result.rvol.toFixed(2)}x</span>
               </div>
             </div>
           </div>

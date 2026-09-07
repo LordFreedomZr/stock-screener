@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import {
+  getWatchlistItems,
+  addWatchlistItem,
+  stopWatchlistItem,
+} from '@/lib/stocks/watchlist-service';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = 'force-dynamic';
 
-// Input validation
 function validateTicker(ticker: unknown): ticker is string {
-  return typeof ticker === 'string' && ticker.length > 0 && ticker.length <= 10 && /^[A-Z0-9]+$/.test(ticker);
+  return (
+    typeof ticker === 'string' &&
+    ticker.length > 0 &&
+    ticker.length <= 10 &&
+    /^[A-Z0-9]+$/i.test(ticker)
+  );
 }
 
 function validateAction(action: unknown): action is 'add' | 'stop' {
@@ -17,48 +22,12 @@ function validateAction(action: unknown): action is 'add' | 'stop' {
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('watchlist_items')
-      .select('*')
-      .order('marked_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch watchlist' },
-        { status: 500 }
-      );
-    }
-
-    const itemsWithEvaluation = await Promise.all(
-      (data || []).map(async (item: any) => {
-        try {
-          const { data: evalData } = await supabase
-            .from('watchlist_evaluations')
-            .select('*')
-            .eq('watchlist_item_id', item.id)
-            .order('timestamp', { ascending: false })
-            .limit(1)
-            .maybeSingle(); // Use maybeSingle instead of single
-
-          return {
-            ...item,
-            latest_evaluation: evalData || null,
-          };
-        } catch (err) {
-          return {
-            ...item,
-            latest_evaluation: null,
-          };
-        }
-      })
-    );
-
-    return NextResponse.json({ success: true, data: itemsWithEvaluation });
-  } catch (error) {
+    const data = await getWatchlistItems();
+    return NextResponse.json({ success: true, data });
+  } catch (error: any) {
     console.error('Error fetching watchlist:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch watchlist' },
+      { success: false, error: error?.message || 'Failed to fetch watchlist' },
       { status: 500 }
     );
   }
@@ -67,7 +36,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { ticker, action } = body;
+    const { ticker, action, price, score, direction } = body;
 
     // Validate inputs
     if (!validateTicker(ticker)) {
@@ -84,97 +53,41 @@ export async function POST(request: Request) {
       );
     }
 
+    const cleanTicker = ticker.toUpperCase();
+
     if (action === 'add') {
-      // Check if already active in watchlist
-      const { data: existingActive } = await supabase
-        .from('watchlist_items')
-        .select('id')
-        .eq('ticker', ticker)
-        .eq('status', 'active')
-        .limit(1);
+      const { item, evaluation } = await addWatchlistItem(cleanTicker, {
+        price: typeof price === 'number' && price > 0 ? price : undefined,
+        score: typeof score === 'number' ? score : undefined,
+        direction: direction === 'bullish' || direction === 'bearish' ? direction : undefined,
+      });
 
-      if (existingActive && existingActive.length > 0) {
-        return NextResponse.json(
-          { success: false, error: 'Stock already in watchlist' },
-          { status: 409 }
-        );
-      }
-
-      // Check if there's a stopped item - reactivate it
-      const { data: existingStopped } = await supabase
-        .from('watchlist_items')
-        .select('id')
-        .eq('ticker', ticker)
-        .eq('status', 'stopped')
-        .limit(1);
-
-      if (existingStopped && existingStopped.length > 0) {
-        // Reactivate the stopped item
-        const { data, error } = await supabase
-          .from('watchlist_items')
-          .update({ status: 'active', stopped_at: null })
-          .eq('id', existingStopped[0].id)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Supabase error:', error);
-          return NextResponse.json(
-            { success: false, error: 'Failed to reactivate watchlist item' },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({ success: true, data });
-      }
-
-      // Create new watchlist item
-      const { data, error } = await supabase
-        .from('watchlist_items')
-        .insert({ ticker, status: 'active' })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supabase error:', error);
-        return NextResponse.json(
-          { success: false, error: 'Failed to add to watchlist' },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({ success: true, data });
+      return NextResponse.json({
+        success: true,
+        data: item,
+        evaluation,
+        message: `${cleanTicker} berhasil ditambahkan ke watchlist dengan evaluasi awal.`,
+      });
     } else {
-      const { data, error } = await supabase
-        .from('watchlist_items')
-        .update({ status: 'stopped', stopped_at: new Date().toISOString() })
-        .eq('ticker', ticker)
-        .eq('status', 'active')
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supabase error:', error);
+      const stopped = await stopWatchlistItem(cleanTicker);
+      if (!stopped) {
         return NextResponse.json(
-          { success: false, error: 'Failed to stop watchlist item' },
-          { status: 500 }
-        );
-      }
-
-      if (!data) {
-        return NextResponse.json(
-          { success: false, error: 'Watchlist item not found' },
+          { success: false, error: 'Watchlist item not found or already stopped' },
           { status: 404 }
         );
       }
 
-      return NextResponse.json({ success: true, data });
+      return NextResponse.json({
+        success: true,
+        message: `${cleanTicker} berhasil dihentikan dari pemantauan aktif.`,
+      });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating watchlist:', error);
+    const status = error.message?.includes('already active') ? 409 : 500;
     return NextResponse.json(
-      { success: false, error: 'Failed to update watchlist' },
-      { status: 500 }
+      { success: false, error: error?.message || 'Failed to update watchlist' },
+      { status }
     );
   }
 }

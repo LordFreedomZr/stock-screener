@@ -58,6 +58,9 @@ export interface WatchlistItem {
   stopped_at: string | null;
   stock?: Stock;
   latest_evaluation?: WatchlistEvaluation;
+  entry_price?: number;
+  entry_score?: number;
+  entry_direction?: 'bullish' | 'bearish';
 }
 
 export interface WatchlistEvaluation {
@@ -65,14 +68,15 @@ export interface WatchlistEvaluation {
   watchlist_item_id: string;
   ticker: string;
   timestamp: string;
-  previous_analysis_id: string;
+  previous_analysis_id?: string | null;
   status: 'benar' | 'floating' | 'meleset';
   price_movement_percent: number;
   price_movement_nominal: number;
   current_price: number;
+  entry_price?: number;
   analysis_score: number;
   analysis_direction: 'bullish' | 'bearish';
-  notes: string | null;
+  notes?: string | null;
 }
 
 export interface ThresholdConfig {

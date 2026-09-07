@@ -99,11 +99,17 @@ export default function StockDetailPage() {
     setWatchlistLoading(true);
     try {
       const action = isInWatchlist ? 'stop' : 'add';
+      const payload: any = { ticker, action };
+      if (action === 'add' && result) {
+        payload.price = result.price;
+        payload.score = result.score;
+        payload.direction = result.direction;
+      }
       
       const response = await fetch('/api/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, action }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

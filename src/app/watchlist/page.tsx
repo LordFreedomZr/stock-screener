@@ -6,13 +6,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WatchlistItem } from '@/types';
-import { supabase } from '@/lib/supabase/client';
-import { Star, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Star, RefreshCw, CheckCircle, XCircle, Clock, Zap, Target } from 'lucide-react';
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalNotice, setEvalNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('all');
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -54,6 +55,54 @@ export default function WatchlistPage() {
     };
   }, [fetchWatchlist]);
 
+  // On-demand evaluation for all active items
+  const handleEvaluateAll = async () => {
+    setEvaluating(true);
+    setEvalNotice(null);
+    try {
+      const response = await fetch('/api/watchlist/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const res = await response.json();
+
+      if (res.success && res.data) {
+        setItems(res.data);
+        const s = res.summary;
+        if (s) {
+          setEvalNotice(
+            `Evaluasi selesai: ${s.benar} Benar, ${s.floating} Floating, ${s.meleset} Meleset (Hit Rate: ${s.hitRate.toFixed(1)}%)`
+          );
+          setTimeout(() => setEvalNotice(null), 5000);
+        }
+      } else {
+        setEvalNotice(res.error || 'Gagal mengevaluasi watchlist.');
+      }
+    } catch (err) {
+      console.error('Error evaluating watchlist:', err);
+      setEvalNotice('Gagal menghubungkan ke server evaluasi.');
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  // Evaluate single item
+  const handleEvaluateSingle = async (ticker: string) => {
+    try {
+      const response = await fetch('/api/watchlist/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker }),
+      });
+      const res = await response.json();
+      if (res.success && res.data) {
+        setItems(res.data);
+      }
+    } catch (err) {
+      console.error(`Error evaluating ${ticker}:`, err);
+    }
+  };
+
   const handleStop = async (ticker: string) => {
     try {
       const response = await fetch('/api/watchlist', {
@@ -66,10 +115,10 @@ export default function WatchlistPage() {
 
       if (data.success) {
         // Update local state
-        setItems(prev =>
-          prev.map(item =>
+        setItems((prev) =>
+          prev.map((item) =>
             item.ticker === ticker
-              ? { ...item, status: 'stopped' as const }
+              ? { ...item, status: 'stopped' as const, stopped_at: new Date().toISOString() }
               : item
           )
         );
@@ -81,40 +130,62 @@ export default function WatchlistPage() {
     }
   };
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = items.filter((item) => {
     if (filter === 'all') return true;
     return item.status === filter;
   });
 
-  const activeCount = items.filter(i => i.status === 'active').length;
-  const stoppedCount = items.filter(i => i.status === 'stopped').length;
+  const activeCount = items.filter((i) => i.status === 'active').length;
+  const stoppedCount = items.filter((i) => i.status === 'stopped').length;
 
   const stats = {
-    benar: items.filter(i => i.latest_evaluation?.status === 'benar').length,
-    floating: items.filter(i => i.latest_evaluation?.status === 'floating').length,
-    meleset: items.filter(i => i.latest_evaluation?.status === 'meleset').length,
+    benar: items.filter((i) => i.latest_evaluation?.status === 'benar').length,
+    floating: items.filter((i) => i.latest_evaluation?.status === 'floating').length,
+    meleset: items.filter((i) => i.latest_evaluation?.status === 'meleset').length,
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Watchlist</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {items.length} stocks being monitored
+            {items.length} saham dalam pemantauan ({activeCount} aktif)
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchWatchlist}
-          disabled={fetching}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleEvaluateAll}
+            disabled={evaluating || activeCount === 0}
+            className="bg-cyan-500 hover:bg-cyan-600 text-gray-950 font-semibold shadow-lg shadow-cyan-500/20"
+          >
+            <Zap className={`w-4 h-4 mr-2 ${evaluating ? 'animate-spin text-gray-950' : 'fill-gray-950'}`} />
+            {evaluating ? 'Mengevaluasi Live...' : 'Evaluasi Sekarang'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchWatchlist}
+            disabled={fetching}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
+      {/* Notification Banner */}
+      {evalNotice && (
+        <div className="p-3 bg-cyan-950/60 border border-cyan-500/40 rounded-xl text-cyan-300 text-xs flex items-center gap-2 animate-in fade-in duration-300">
+          <Target className="w-4 h-4 shrink-0 text-cyan-400" />
+          <span>{evalNotice}</span>
+        </div>
+      )}
+
+      {/* Evaluation Statistics */}
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -124,7 +195,7 @@ export default function WatchlistPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-emerald-400">{stats.benar}</p>
-                <p className="text-xs text-gray-500">Benar</p>
+                <p className="text-xs text-gray-500">Prediksi Benar</p>
               </div>
             </div>
           </CardContent>
@@ -137,7 +208,7 @@ export default function WatchlistPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-yellow-400">{stats.floating}</p>
-                <p className="text-xs text-gray-500">Floating</p>
+                <p className="text-xs text-gray-500">Floating (-2% s/d +2%)</p>
               </div>
             </div>
           </CardContent>
@@ -157,8 +228,9 @@ export default function WatchlistPage() {
         </Card>
       </div>
 
+      {/* Filter Tabs */}
       <div className="flex gap-2">
-        {(['all', 'active', 'stopped'] as const).map(tab => (
+        {(['all', 'active', 'stopped'] as const).map((tab) => (
           <Button
             key={tab}
             variant={filter === tab ? 'default' : 'ghost'}
@@ -173,6 +245,7 @@ export default function WatchlistPage() {
         ))}
       </div>
 
+      {/* List / Grid Content */}
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(3)].map((_, i) => (
@@ -198,18 +271,23 @@ export default function WatchlistPage() {
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-12 text-center">
             <Star className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-            <h3 className="text-lg font-medium text-white mb-2">No Watchlist Items</h3>
-            <p className="text-gray-500">
+            <h3 className="text-lg font-medium text-white mb-2">Watchlist Kosong</h3>
+            <p className="text-gray-500 text-sm max-w-md mx-auto">
               {filter === 'all'
-                ? 'Add stocks from the Dashboard to start monitoring them.'
-                : `No ${filter} items in your watchlist.`}
+                ? 'Tambahkan saham dari halaman Dashboard atau Detail Saham untuk mulai memantau dan mengevaluasi pergerakan sinyalnya.'
+                : `Tidak ada saham berstatus ${filter} di dalam watchlist.`}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredItems.map(item => (
-            <WatchlistCard key={item.id} item={item} onStop={handleStop} />
+          {filteredItems.map((item) => (
+            <WatchlistCard
+              key={item.id}
+              item={item}
+              onStop={handleStop}
+              onEvaluate={handleEvaluateSingle}
+            />
           ))}
         </div>
       )}

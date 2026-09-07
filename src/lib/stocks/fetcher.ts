@@ -8,11 +8,7 @@ import {
   calculateOBV,
   calculateScore,
 } from './indicators';
-import {
-  getTradingViewClient,
-  TradingViewQuote,
-  TradingViewStockPricesResponse,
-} from './tradingview';
+import { fetchPriceFromTradingView, fetchMultiplePricesFromTradingView, TradingViewQuote } from './tradingview';
 
 export interface ScoreConfig {
   rsi_period: number;
@@ -93,21 +89,20 @@ export interface QuoteResult {
 export async function fetchQuote(ticker: string): Promise<QuoteResult> {
   // Try TradingView MCP first
   try {
-    const tvClient = getTradingViewClient();
-    const tvQuote = await tvClient.yahooPrice(ticker);
+    const tvQuote = await fetchPriceFromTradingView(ticker);
     
     if (tvQuote && tvQuote.price > 0) {
       const quote: YahooQuote = {
         symbol: ticker,
         price: tvQuote.price,
-        change: tvQuote.price * (tvQuote.change_percent / 100),
-        changePercent: tvQuote.change_percent,
-        volume: 0, // TradingView doesn't provide volume in yahoo_price
+        change: tvQuote.change,
+        changePercent: tvQuote.change_pct,
+        volume: 0, // TradingView yahoo_price doesn't provide volume
         avgVolume: 0,
-        high: tvQuote.high || tvQuote.price,
-        low: tvQuote.low || tvQuote.price,
-        open: tvQuote.open || tvQuote.price,
-        previousClose: tvQuote.price / (1 + tvQuote.change_percent / 100),
+        high: tvQuote['52w_high'] || tvQuote.price,
+        low: tvQuote['52w_low'] || tvQuote.price,
+        open: tvQuote.previous_close || tvQuote.price,
+        previousClose: tvQuote.previous_close,
         marketCap: 0,
       };
       return { quote, dataSource: 'tradingview' };
@@ -208,7 +203,17 @@ export async function fetchHistory(
 export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONFIG) {
   const results = [];
   const IDX_STOCKS = await getAllIDXStocks();
+  
+  // Step 1: Try to fetch all prices from TradingView MCP in batches
+  console.log(`Fetching prices for ${IDX_STOCKS.length} stocks from TradingView MCP...`);
+  const tvTickers = IDX_STOCKS.map(s => s.ticker);
+  const tvPrices = await fetchMultiplePricesFromTradingView(tvTickers);
+  console.log(`TradingView MCP returned ${tvPrices.size} prices`);
+  
+  // Step 2: Process each stock
   const batchSize = 5;
+  let tradingViewCount = 0;
+  let yahooCount = 0;
   
   for (let i = 0; i < IDX_STOCKS.length; i += batchSize) {
     const batch = IDX_STOCKS.slice(i, i + batchSize);
@@ -216,13 +221,49 @@ export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONF
     const batchResults = await Promise.all(
       batch.map(async (stock) => {
         try {
-          const [quoteResult, history] = await Promise.all([
-            fetchQuote(stock.ticker),
-            fetchHistory(stock.ticker, '3mo', '1d'),
-          ]);
+          // Get price from TradingView or fallback to Yahoo
+          let quote: YahooQuote | null = null;
+          let dataSource: 'tradingview' | 'yahoo' = 'yahoo';
           
-          const { quote, dataSource } = quoteResult;
+          const tvQuote = tvPrices.get(stock.ticker);
+          if (tvQuote && tvQuote.price > 0) {
+            // Use TradingView price (but we still need history from Yahoo for indicators)
+            quote = {
+              symbol: stock.ticker,
+              price: tvQuote.price,
+              change: tvQuote.change,
+              changePercent: tvQuote.change_pct,
+              volume: 0, // Will get from history
+              avgVolume: 0,
+              high: tvQuote['52w_high'] || tvQuote.price,
+              low: tvQuote['52w_low'] || tvQuote.price,
+              open: tvQuote.previous_close || tvQuote.price,
+              previousClose: tvQuote.previous_close,
+              marketCap: 0,
+            };
+            dataSource = 'tradingview';
+            tradingViewCount++;
+          } else {
+            // Fallback to Yahoo Finance
+            const result = await fetchQuote(stock.ticker);
+            quote = result.quote;
+            dataSource = result.dataSource;
+            yahooCount++;
+          }
+          
+          // Get history for indicators (always from Yahoo)
+          const history = await fetchHistory(stock.ticker, '3mo', '1d');
+          
           if (!quote || history.length === 0) return null;
+          
+          // Update volume from history if we got price from TradingView
+          if (dataSource === 'tradingview' && history.length > 0) {
+            const latestBar = history[history.length - 1];
+            quote.volume = latestBar.volume;
+            // Calculate avg volume from history
+            const volumes = history.map(h => h.volume);
+            quote.avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+          }
           
           const closes = history.map(h => h.close);
           const highs = history.map(h => h.high);
@@ -312,5 +353,6 @@ export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONF
     }
   }
   
+  console.log(`Screening complete: ${tradingViewCount} from TradingView, ${yahooCount} from Yahoo`);
   return results;
 }

@@ -32,6 +32,20 @@ interface YahooHistory {
   volume: number;
 }
 
+export interface VolumeSpikeResult {
+  ticker: string;
+  name: string;
+  sector: string;
+  price: number;
+  currentVolume: number;
+  yesterdayVolume: number;
+  avgVolume3d: number;
+  avgVolume5d: number;
+  spikeVsYesterday: number;
+  spikeVs3dAvg: number;
+  spikeVs5dAvg: number;
+}
+
 // Fetch real-time quote from Yahoo Finance
 export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
   try {
@@ -177,6 +191,13 @@ export async function fetchAllStocksScreening() {
           const maxLossPercent = ((minPrice - quote.price) / quote.price) * 100;
           const maxLossNominal = minPrice - quote.price;
           
+          // Volume spike data
+          const recentVolumes = volumes.slice(-6); // last 6 days (yesterday is index -2, today is -1)
+          const currentVol = recentVolumes[recentVolumes.length - 1] || 0;
+          const yesterdayVol = recentVolumes[recentVolumes.length - 2] || currentVol;
+          const avg3d = recentVolumes.slice(-3).reduce((a, b) => a + b, 0) / Math.min(3, recentVolumes.length);
+          const avg5d = recentVolumes.slice(-5).reduce((a, b) => a + b, 0) / Math.min(5, recentVolumes.length);
+          
           return {
             ticker: stock.ticker,
             name: stock.name,
@@ -199,6 +220,11 @@ export async function fetchAllStocksScreening() {
             max_profit_nominal: maxProfitNominal,
             max_loss_percent: maxLossPercent,
             max_loss_nominal: maxLossNominal,
+            volume_spike: {
+              yesterday: yesterdayVol > 0 ? Math.round(((currentVol - yesterdayVol) / yesterdayVol) * 100) : 0,
+              avg_3d: avg3d > 0 ? Math.round(((currentVol - avg3d) / avg3d) * 100) : 0,
+              avg_5d: avg5d > 0 ? Math.round(((currentVol - avg5d) / avg5d) * 100) : 0,
+            },
           };
         } catch (error) {
           console.error(`Error processing ${stock.ticker}:`, error);

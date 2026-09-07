@@ -22,6 +22,7 @@ export interface PriceSnapshot {
 export interface ScreeningResult {
   id: string;
   ticker: string;
+  name: string;
   timestamp: string;
   score: number;
   direction: 'bullish' | 'bearish';
@@ -41,6 +42,11 @@ export interface ScreeningResult {
   max_loss_nominal: number;
   volume: number;
   config_version: string;
+  volume_spike?: {
+    yesterday: number;
+    avg_3d: number;
+    avg_5d: number;
+  };
 }
 
 export interface WatchlistItem {
@@ -102,6 +108,7 @@ export interface AccuracyStats {
 }
 
 export interface FilterState {
+  searchQuery: string;
   priceMin: number | null;
   priceMax: number | null;
   volumeMin: number | null;
@@ -109,4 +116,18 @@ export interface FilterState {
   maxLossNominal: number | null;
   maxProfitPercent: number | null;
   maxProfitNominal: number | null;
+}
+
+export interface VolumeSpikeData {
+  ticker: string;
+  name: string;
+  sector: string;
+  price: number;
+  currentVolume: number;
+  yesterdayVolume: number;
+  avgVolume3d: number;
+  avgVolume5d: number;
+  spikeVsYesterday: number;
+  spikeVs3dAvg: number;
+  spikeVs5dAvg: number;
 }

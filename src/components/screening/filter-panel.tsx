@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilterState } from '@/types';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal, X, Minimize2, Search } from 'lucide-react';
 
 interface FilterPanelProps {
   filters: FilterState;
@@ -19,6 +19,12 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     // Handle empty value
     if (value === '') {
       onFiltersChange({ ...filters, [key]: null });
+      return;
+    }
+
+    // Handle search query (string)
+    if (key === 'searchQuery') {
+      onFiltersChange({ ...filters, [key]: value });
       return;
     }
 
@@ -39,6 +45,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
   const clearFilters = () => {
     onFiltersChange({
+      searchQuery: '',
       priceMin: null,
       priceMax: null,
       volumeMin: null,
@@ -49,7 +56,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     });
   };
 
-  const hasActiveFilters = Object.values(filters).some((v) => v !== null);
+  const hasActiveFilters = filters.searchQuery || Object.values(filters).some((v) => v !== null && v !== '');
 
   return (
     <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
@@ -58,6 +65,11 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
           <CardTitle className="text-base flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
             Filter
+            {hasActiveFilters && (
+              <span className="ml-2 px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-400 rounded-full">
+                Active
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
@@ -77,13 +89,30 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               onClick={() => setIsOpen(!isOpen)}
               className="text-gray-400 hover:text-white"
             >
-              {isOpen ? 'Hide' : 'Show'}
+              <Minimize2 className={`w-4 h-4 transition-transform ${isOpen ? '' : 'rotate-45'}`} />
             </Button>
           </div>
         </div>
       </CardHeader>
       {isOpen && (
         <CardContent className="space-y-4">
+          {/* Search by ticker/name */}
+          <div className="space-y-2">
+            <label className="text-xs text-gray-500 uppercase tracking-wider">
+              Search Stock
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Input
+                type="text"
+                placeholder="Type ticker or name (e.g. BBCA)"
+                value={filters.searchQuery || ''}
+                onChange={(e) => updateFilter('searchQuery', e.target.value)}
+                className="h-8 text-xs pl-9"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">

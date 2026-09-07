@@ -9,6 +9,38 @@ import {
   calculateScore,
 } from './indicators';
 
+export interface ScoreConfig {
+  rsi_period: number;
+  rsi_oversold: number;
+  rsi_overbought: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal: number;
+  roc_period: number;
+  atr_period: number;
+  atr_min_percent: number;
+  atr_max_percent: number;
+  rvol_threshold: number;
+  weight_momentum: number;
+  weight_volume: number;
+}
+
+const DEFAULT_CONFIG: ScoreConfig = {
+  rsi_period: 14,
+  rsi_oversold: 30,
+  rsi_overbought: 70,
+  macd_fast: 12,
+  macd_slow: 26,
+  macd_signal: 9,
+  roc_period: 12,
+  atr_period: 14,
+  atr_min_percent: 1.5,
+  atr_max_percent: 6.0,
+  rvol_threshold: 2.0,
+  weight_momentum: 50,
+  weight_volume: 50,
+};
+
 interface YahooQuote {
   symbol: string;
   price: number;
@@ -46,7 +78,6 @@ export interface VolumeSpikeResult {
   spikeVs5dAvg: number;
 }
 
-// Fetch real-time quote from Yahoo Finance
 export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
   try {
     const yahooTicker = toYahooTicker(ticker);
@@ -89,7 +120,6 @@ export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
   }
 }
 
-// Fetch historical data for technical analysis
 export async function fetchHistory(
   ticker: string,
   range: string = '3mo',
@@ -137,11 +167,8 @@ export async function fetchHistory(
   }
 }
 
-// Fetch all IDX stocks with screening
-export async function fetchAllStocksScreening() {
+export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONFIG) {
   const results = [];
-  
-  // Fetch in batches to avoid rate limiting
   const batchSize = 5;
   
   for (let i = 0; i < IDX_STOCKS.length; i += batchSize) {
@@ -162,10 +189,11 @@ export async function fetchAllStocksScreening() {
           const lows = history.map(h => h.low);
           const volumes = history.map(h => h.volume);
           
-          const rsi = calculateRSI(closes);
-          const macdResult = calculateMACD(closes);
-          const roc = calculateROC(closes);
-          const atr = calculateATR(highs, lows, closes);
+          // Use config for indicator periods
+          const rsi = calculateRSI(closes, config.rsi_period);
+          const macdResult = calculateMACD(closes, config.macd_fast, config.macd_slow, config.macd_signal);
+          const roc = calculateROC(closes, config.roc_period);
+          const atr = calculateATR(highs, lows, closes, config.atr_period);
           const atrPercent = quote.price > 0 ? (atr / quote.price) * 100 : 0;
           const rvol = calculateRVOL(quote.volume, quote.avgVolume);
           const obv = calculateOBV(closes, volumes);
@@ -179,9 +207,8 @@ export async function fetchAllStocksScreening() {
             atrPercent,
           };
           
-          const { score, direction } = calculateScore(indicators);
+          const { score, direction } = calculateScore(indicators, config);
           
-          // Calculate max profit/loss from history
           const recentPrices = closes.slice(-5);
           const maxPrice = Math.max(...recentPrices);
           const minPrice = Math.min(...recentPrices);
@@ -191,8 +218,7 @@ export async function fetchAllStocksScreening() {
           const maxLossPercent = ((minPrice - quote.price) / quote.price) * 100;
           const maxLossNominal = minPrice - quote.price;
           
-          // Volume spike data
-          const recentVolumes = volumes.slice(-6); // last 6 days (yesterday is index -2, today is -1)
+          const recentVolumes = volumes.slice(-6);
           const currentVol = recentVolumes[recentVolumes.length - 1] || 0;
           const yesterdayVol = recentVolumes[recentVolumes.length - 2] || currentVol;
           const avg3d = recentVolumes.slice(-3).reduce((a, b) => a + b, 0) / Math.min(3, recentVolumes.length);
@@ -235,7 +261,6 @@ export async function fetchAllStocksScreening() {
     
     results.push(...batchResults.filter(Boolean));
     
-    // Delay between batches to avoid rate limiting
     if (i + batchSize < IDX_STOCKS.length) {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }

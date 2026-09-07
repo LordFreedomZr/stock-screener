@@ -145,25 +145,45 @@ interface IndicatorSignal {
   label: string;
 }
 
-export function calculateScore(indicators: {
-  rsi: number;
-  macd: number;
-  macdSignal: number;
-  roc: number;
-  rvol: number;
-  atrPercent: number;
-}): { score: number; direction: 'bullish' | 'bearish'; breakdown: IndicatorSignal[] } {
+interface ScoreConfig {
+  rsi_oversold: number;
+  rsi_overbought: number;
+  atr_min_percent: number;
+  atr_max_percent: number;
+  rvol_threshold: number;
+  weight_momentum: number;
+  weight_volume: number;
+}
+
+export function calculateScore(
+  indicators: {
+    rsi: number;
+    macd: number;
+    macdSignal: number;
+    roc: number;
+    rvol: number;
+    atrPercent: number;
+  },
+  config: ScoreConfig = {
+    rsi_oversold: 30,
+    rsi_overbought: 70,
+    atr_min_percent: 1.5,
+    atr_max_percent: 6.0,
+    rvol_threshold: 2.0,
+    weight_momentum: 50,
+    weight_volume: 50,
+  }
+): { score: number; direction: 'bullish' | 'bearish'; breakdown: IndicatorSignal[] } {
   
-  // RSI signal (0-1)
-  // >50 = bullish, <30 = oversold bonus, >70 = penalty
+  // RSI signal (0-1) using config thresholds
+  const midRsi = (config.rsi_overbought + config.rsi_oversold) / 2;
   let rsiScore = 0;
-  if (indicators.rsi > 50 && indicators.rsi < 70) rsiScore = 1;
-  else if (indicators.rsi >= 30 && indicators.rsi <= 50) rsiScore = 0.5;
-  else if (indicators.rsi < 30) rsiScore = 0.7; // oversold = potential bounce
+  if (indicators.rsi > midRsi && indicators.rsi < config.rsi_overbought) rsiScore = 1;
+  else if (indicators.rsi >= config.rsi_oversold && indicators.rsi <= midRsi) rsiScore = 0.5;
+  else if (indicators.rsi < config.rsi_oversold) rsiScore = 0.7; // oversold = potential bounce
   else rsiScore = 0.1; // overbought
 
   // MACD signal (0-1)
-  // MACD > signal = bullish, stronger if histogram positive
   let macdScore = 0;
   const macdBullish = indicators.macd > indicators.macdSignal;
   const histogramStrength = Math.abs(indicators.macd - indicators.macdSignal);
@@ -174,44 +194,57 @@ export function calculateScore(indicators: {
   }
 
   // ROC signal (0-1)
-  // Positive = bullish, higher = stronger
   let rocScore = 0;
   if (indicators.roc > 3) rocScore = 1;
   else if (indicators.roc > 0) rocScore = 0.7;
   else if (indicators.roc > -3) rocScore = 0.3;
   else rocScore = 0;
 
-  // RVOL signal (0-1)
-  // >2x = strong confirmation, 1-2x = moderate
+  // RVOL signal (0-1) using config threshold
+  const t = config.rvol_threshold;
   let rvolScore = 0;
-  if (indicators.rvol >= 2) rvolScore = 1;
-  else if (indicators.rvol >= 1.5) rvolScore = 0.8;
+  if (indicators.rvol >= t) rvolScore = 1;
+  else if (indicators.rvol >= t * 0.75) rvolScore = 0.8;
   else if (indicators.rvol >= 1) rvolScore = 0.5;
   else rvolScore = 0.2;
 
-  // ATR signal (0-1)
-  // Moderate volatility (1.5-6%) is ideal for trading
+  // ATR signal (0-1) using config min/max
   let atrScore = 0;
-  if (indicators.atrPercent >= 1.5 && indicators.atrPercent <= 6) atrScore = 1;
-  else if (indicators.atrPercent >= 1 && indicators.atrPercent <= 8) atrScore = 0.6;
+  if (indicators.atrPercent >= config.atr_min_percent && indicators.atrPercent <= config.atr_max_percent) atrScore = 1;
+  else if (indicators.atrPercent >= config.atr_min_percent * 0.7 && indicators.atrPercent <= config.atr_max_percent * 1.3) atrScore = 0.6;
   else atrScore = 0.2;
 
+  // Weights from config (momentum vs volume split)
+  const momentumWeight = config.weight_momentum / 100;
+  const volumeWeight = config.weight_volume / 100;
+  
+  // Momentum indicators: RSI, MACD, ROC (share momentumWeight)
+  const rsiW = momentumWeight * 0.4;   // 40% of momentum
+  const macdW = momentumWeight * 0.35; // 35% of momentum
+  const rocW = momentumWeight * 0.25;  // 25% of momentum
+  
+  // Volume indicators: RVOL, ATR (share volumeWeight)
+  const rvolW = volumeWeight * 0.6; // 60% of volume
+  const atrW = volumeWeight * 0.4;  // 40% of volume
+
   const signals: IndicatorSignal[] = [
-    { score: rsiScore, weight: 0.25, label: 'RSI' },
-    { score: macdScore, weight: 0.25, label: 'MACD' },
-    { score: rocScore, weight: 0.2, label: 'ROC' },
-    { score: rvolScore, weight: 0.15, label: 'RVOL' },
-    { score: atrScore, weight: 0.15, label: 'ATR' },
+    { score: rsiScore, weight: rsiW, label: 'RSI' },
+    { score: macdScore, weight: macdW, label: 'MACD' },
+    { score: rocScore, weight: rocW, label: 'ROC' },
+    { score: rvolScore, weight: rvolW, label: 'RVOL' },
+    { score: atrScore, weight: atrW, label: 'ATR' },
   ];
 
   // Calculate weighted score (0-5 scale)
   const totalWeight = signals.reduce((sum, s) => sum + s.weight, 0);
-  const normalizedScore = signals.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight;
-  const finalScore = Math.round(normalizedScore * 5 * 10) / 10; // 1 decimal
+  const normalizedScore = totalWeight > 0
+    ? signals.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight
+    : 0.5;
+  const finalScore = Math.round(normalizedScore * 5 * 10) / 10;
 
-  // Direction based on weighted signals
-  const bullishPower = rsiScore * 0.25 + macdScore * 0.25 + rocScore * 0.2;
-  const bearishPower = (1 - rsiScore) * 0.25 + (1 - macdScore) * 0.25 + (1 - rocScore) * 0.2;
+  // Direction based on momentum indicators only (more responsive)
+  const bullishPower = rsiScore * rsiW + macdScore * macdW + rocScore * rocW;
+  const bearishPower = (1 - rsiScore) * rsiW + (1 - macdScore) * macdW + (1 - rocScore) * rocW;
   const direction = bullishPower > bearishPower ? 'bullish' : 'bearish';
 
   return { score: Math.min(5, Math.max(1, finalScore)), direction, breakdown: signals };

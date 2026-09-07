@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchAllStocksScreening, ScoreConfig } from '@/lib/stocks/fetcher';
+import { getAllIDXStocks } from '@/lib/stocks/idx-tickers';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -61,6 +62,7 @@ async function fetchLatestConfig(): Promise<ScoreConfig> {
 export async function GET() {
   try {
     const config = await fetchLatestConfig();
+    const allStocks = await getAllIDXStocks();
     const results = await fetchAllStocksScreening(config);
     
     return NextResponse.json({
@@ -69,6 +71,7 @@ export async function GET() {
       config_version: config.rsi_period + '-' + config.macd_fast,
       timestamp: new Date().toISOString(),
       count: results.length,
+      total_available: allStocks.length,
     });
   } catch (error) {
     console.error('Error in screening API:', error);

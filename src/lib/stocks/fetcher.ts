@@ -1,4 +1,4 @@
-import { IDX_STOCKS, toYahooTicker } from './idx-tickers';
+import { getAllIDXStocks, toYahooTicker } from './idx-tickers';
 import {
   calculateRSI,
   calculateMACD,
@@ -171,6 +171,7 @@ export async function fetchHistory(
 
 export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONFIG) {
   const results = [];
+  const IDX_STOCKS = await getAllIDXStocks();
   const batchSize = 5;
   
   for (let i = 0; i < IDX_STOCKS.length; i += batchSize) {

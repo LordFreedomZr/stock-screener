@@ -1,0 +1,17 @@
+name: Hourly Watchlist Evaluation
+
+on:
+  schedule:
+    # Runs every hour
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Watchlist Evaluation
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "https://stock-screener-five-red.vercel.app/api/cron/evaluate-watchlist" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET || 'screener_secret_key_2026' }}")
+          echo "$RESPONSE"

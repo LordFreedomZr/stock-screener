@@ -20,6 +20,7 @@ export interface ScoreConfig {
   atr_period: number;
   atr_min_percent: number;
   atr_max_percent: number;
+  volume_min_turnover: number;
   rvol_threshold: number;
   weight_momentum: number;
   weight_volume: number;
@@ -36,6 +37,7 @@ const DEFAULT_CONFIG: ScoreConfig = {
   atr_period: 14,
   atr_min_percent: 1.5,
   atr_max_percent: 6.0,
+  volume_min_turnover: 1000000000,
   rvol_threshold: 2.0,
   weight_momentum: 50,
   weight_volume: 50,
@@ -208,6 +210,11 @@ export async function fetchAllStocksScreening(config: ScoreConfig = DEFAULT_CONF
           };
           
           const { score, direction } = calculateScore(indicators, config);
+          
+          // Apply config-based filters
+          const turnover = quote.volume * quote.price;
+          if (turnover < config.volume_min_turnover) return null;
+          if (atrPercent < config.atr_min_percent * 0.5 || atrPercent > config.atr_max_percent * 2) return null;
           
           const recentPrices = closes.slice(-5);
           const maxPrice = Math.max(...recentPrices);

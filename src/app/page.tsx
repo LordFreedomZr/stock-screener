@@ -1,20 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScreeningCard } from '@/components/screening/screening-card';
 import { FilterPanel } from '@/components/screening/filter-panel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterState, ScreeningResult } from '@/types';
-import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function DashboardPage() {
   const [results, setResults] = useState<ScreeningResult[]>([]);
@@ -28,40 +22,35 @@ export default function DashboardPage() {
     maxProfitNominal: null,
   });
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchScreeningResults = async () => {
-    setLoading(true);
+  const fetchScreeningResults = useCallback(async () => {
+    setFetching(true);
+    setError(null);
     try {
-      const { data, error } = await supabase
-        .from('screening_results')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .order('score', { ascending: false });
-
-      if (error) throw error;
-
-      const latestResults = new Map<string, ScreeningResult>();
-      data?.forEach((result: any) => {
-        if (!latestResults.has(result.ticker)) {
-          latestResults.set(result.ticker, result as ScreeningResult);
-        }
-      });
-
-      setResults(Array.from(latestResults.values()));
-      setLastUpdate(new Date());
-    } catch (error) {
-      console.error('Error fetching screening results:', error);
+      const response = await fetch('/api/screening');
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setResults(data.data);
+        setLastUpdate(new Date());
+      } else {
+        setError(data.error || 'Failed to fetch data');
+      }
+    } catch (err) {
+      console.error('Error fetching screening results:', err);
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
+      setFetching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchScreeningResults();
-    const interval = setInterval(fetchScreeningResults, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [fetchScreeningResults]);
 
   const filteredResults = results.filter((result) => {
     if (filters.priceMin !== null && result.price < filters.priceMin) return false;
@@ -79,6 +68,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Stock Screener</h1>
@@ -91,13 +81,14 @@ export default function DashboardPage() {
           variant="outline"
           size="sm"
           onClick={fetchScreeningResults}
-          disabled={loading}
+          disabled={fetching}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
+          {fetching ? 'Fetching...' : 'Refresh'}
         </Button>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -140,8 +131,22 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Filter */}
       <FilterPanel filters={filters} onFiltersChange={setFilters} />
 
+      {/* Error State */}
+      {error && (
+        <Card className="border-red-500/50 bg-red-500/10">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-red-400">
+              <Zap className="w-4 h-4" />
+              <p className="text-sm">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading State */}
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -170,7 +175,7 @@ export default function DashboardPage() {
             <h3 className="text-lg font-medium text-white mb-2">No Results Found</h3>
             <p className="text-gray-500">
               {results.length === 0
-                ? 'No screening results available yet. Run a screening first.'
+                ? 'No screening results available yet. Click Refresh to fetch data.'
                 : 'No stocks match your current filters.'}
             </p>
           </CardContent>
@@ -182,6 +187,15 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      {/* Data Source Info */}
+      <Card className="border-gray-800/50 bg-gray-900/50">
+        <CardContent className="p-4">
+          <p className="text-xs text-gray-500 text-center">
+            Data source: Yahoo Finance | 40+ IDX stocks | Real-time quotes
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

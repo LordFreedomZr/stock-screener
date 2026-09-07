@@ -1,0 +1,219 @@
+import { IDX_STOCKS, toYahooTicker } from './idx-tickers';
+import {
+  calculateRSI,
+  calculateMACD,
+  calculateROC,
+  calculateATR,
+  calculateRVOL,
+  calculateOBV,
+  calculateScore,
+} from './indicators';
+
+interface YahooQuote {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  avgVolume: number;
+  high: number;
+  low: number;
+  open: number;
+  previousClose: number;
+  marketCap: number;
+}
+
+interface YahooHistory {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+// Fetch real-time quote from Yahoo Finance
+export async function fetchQuote(ticker: string): Promise<YahooQuote | null> {
+  try {
+    const yahooTicker = toYahooTicker(ticker);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=1d&range=1d`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const result = data.chart?.result?.[0];
+    
+    if (!result) return null;
+    
+    const meta = result.meta;
+    const quote: YahooQuote = {
+      symbol: ticker,
+      price: meta.regularMarketPrice || 0,
+      change: (meta.regularMarketPrice || 0) - (meta.chartPreviousClose || 0),
+      changePercent: meta.chartPreviousClose
+        ? ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100
+        : 0,
+      volume: meta.regularMarketVolume || 0,
+      avgVolume: meta.averageDailyVolume3Month || 0,
+      high: meta.regularMarketDayHigh || meta.regularMarketPrice || 0,
+      low: meta.regularMarketDayLow || meta.regularMarketPrice || 0,
+      open: meta.regularMarketOpen || meta.regularMarketPrice || 0,
+      previousClose: meta.chartPreviousClose || 0,
+      marketCap: meta.marketCap || 0,
+    };
+    
+    return quote;
+  } catch (error) {
+    console.error(`Error fetching quote for ${ticker}:`, error);
+    return null;
+  }
+}
+
+// Fetch historical data for technical analysis
+export async function fetchHistory(
+  ticker: string,
+  range: string = '3mo',
+  interval: string = '1d'
+): Promise<YahooHistory[]> {
+  try {
+    const yahooTicker = toYahooTicker(ticker);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=${interval}&range=${range}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (!response.ok) return [];
+    
+    const data = await response.json();
+    const result = data.chart?.result?.[0];
+    
+    if (!result) return [];
+    
+    const timestamps = result.timestamp || [];
+    const ohlc = result.indicators?.quote?.[0] || {};
+    
+    const history: YahooHistory[] = [];
+    
+    for (let i = 0; i < timestamps.length; i++) {
+      if (ohlc.open[i] !== null && ohlc.close[i] !== null) {
+        history.push({
+          timestamp: timestamps[i],
+          open: ohlc.open[i],
+          high: ohlc.high[i],
+          low: ohlc.low[i],
+          close: ohlc.close[i],
+          volume: ohlc.volume[i] || 0,
+        });
+      }
+    }
+    
+    return history;
+  } catch (error) {
+    console.error(`Error fetching history for ${ticker}:`, error);
+    return [];
+  }
+}
+
+// Fetch all IDX stocks with screening
+export async function fetchAllStocksScreening() {
+  const results = [];
+  
+  // Fetch in batches to avoid rate limiting
+  const batchSize = 5;
+  
+  for (let i = 0; i < IDX_STOCKS.length; i += batchSize) {
+    const batch = IDX_STOCKS.slice(i, i + batchSize);
+    
+    const batchResults = await Promise.all(
+      batch.map(async (stock) => {
+        try {
+          const [quote, history] = await Promise.all([
+            fetchQuote(stock.ticker),
+            fetchHistory(stock.ticker, '3mo', '1d'),
+          ]);
+          
+          if (!quote || history.length === 0) return null;
+          
+          const closes = history.map(h => h.close);
+          const highs = history.map(h => h.high);
+          const lows = history.map(h => h.low);
+          const volumes = history.map(h => h.volume);
+          
+          const rsi = calculateRSI(closes);
+          const macdResult = calculateMACD(closes);
+          const roc = calculateROC(closes);
+          const atr = calculateATR(highs, lows, closes);
+          const atrPercent = quote.price > 0 ? (atr / quote.price) * 100 : 0;
+          const rvol = calculateRVOL(quote.volume, quote.avgVolume);
+          const obv = calculateOBV(closes, volumes);
+          
+          const indicators = {
+            rsi,
+            macd: macdResult.macd,
+            macdSignal: macdResult.signal,
+            roc,
+            rvol,
+            atrPercent,
+          };
+          
+          const { score, direction } = calculateScore(indicators);
+          
+          // Calculate max profit/loss from history
+          const recentPrices = closes.slice(-5);
+          const maxPrice = Math.max(...recentPrices);
+          const minPrice = Math.min(...recentPrices);
+          
+          const maxProfitPercent = ((maxPrice - quote.price) / quote.price) * 100;
+          const maxProfitNominal = maxPrice - quote.price;
+          const maxLossPercent = ((minPrice - quote.price) / quote.price) * 100;
+          const maxLossNominal = minPrice - quote.price;
+          
+          return {
+            ticker: stock.ticker,
+            name: stock.name,
+            sector: stock.sector,
+            price: quote.price,
+            price_change_percent: quote.changePercent,
+            volume: quote.volume,
+            turnover: quote.volume * quote.price,
+            score,
+            direction,
+            rsi,
+            macd: macdResult.macd,
+            macd_signal: macdResult.signal,
+            roc,
+            rvol,
+            obv,
+            atr_percent: atrPercent,
+            turnover_avg: quote.avgVolume * quote.price,
+            max_profit_percent: maxProfitPercent,
+            max_profit_nominal: maxProfitNominal,
+            max_loss_percent: maxLossPercent,
+            max_loss_nominal: maxLossNominal,
+          };
+        } catch (error) {
+          console.error(`Error processing ${stock.ticker}:`, error);
+          return null;
+        }
+      })
+    );
+    
+    results.push(...batchResults.filter(Boolean));
+    
+    // Delay between batches to avoid rate limiting
+    if (i + batchSize < IDX_STOCKS.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  
+  return results;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { StockChart } from '@/components/charts/stock-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,17 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScreeningResult, PriceSnapshot } from '@/types';
-import { createClient } from '@supabase/supabase-js';
 import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor, formatDate } from '@/lib/utils';
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
-  Zap, Target, Shield, Clock 
+  Zap, Target, Shield, Clock, RefreshCw 
 } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function StockDetailPage() {
   const params = useParams();
@@ -29,70 +23,67 @@ export default function StockDetailPage() {
   const [priceData, setPriceData] = useState<PriceSnapshot[]>([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const { data: screeningData, error: screeningError } = await supabase
-          .from('screening_results')
-          .select('*')
-          .eq('ticker', ticker)
-          .order('timestamp', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (screeningError) throw screeningError;
-        setResult(screeningData as ScreeningResult);
-
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const { data: priceData, error: priceError } = await supabase
-          .from('price_snapshots')
-          .select('*')
-          .eq('ticker', ticker)
-          .gte('timestamp', sevenDaysAgo.toISOString())
-          .order('timestamp', { ascending: true });
-
-        if (priceError) throw priceError;
-        setPriceData(priceData as PriceSnapshot[]);
-
-        const { data: watchlistData } = await supabase
-          .from('watchlist_items')
-          .select('*')
-          .eq('ticker', ticker)
-          .eq('status', 'active')
-          .limit(1);
-
-        setIsInWatchlist(watchlistData !== null && watchlistData.length > 0);
-      } catch (error) {
-        console.error('Error fetching stock data:', error);
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    setFetching(true);
+    try {
+      // Fetch screening data for this ticker
+      const screeningResponse = await fetch('/api/screening');
+      const screeningData = await screeningResponse.json();
+      
+      if (screeningData.success && screeningData.data) {
+        const stockData = screeningData.data.find((s: any) => s.ticker === ticker);
+        if (stockData) {
+          setResult(stockData as ScreeningResult);
+        }
       }
-    };
 
-    fetchData();
+      // Fetch price history for chart
+      const historyResponse = await fetch(`/api/history/${ticker}`);
+      const historyData = await historyResponse.json();
+      
+      if (historyData.success && historyData.data) {
+        setPriceData(historyData.data as PriceSnapshot[]);
+      }
+    } catch (error) {
+      console.error('Error fetching stock data:', error);
+    } finally {
+      setLoading(false);
+      setFetching(false);
+    }
   }, [ticker]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const toggleWatchlist = async () => {
     setWatchlistLoading(true);
     try {
       if (isInWatchlist) {
-        await supabase
-          .from('watchlist_items')
-          .update({ status: 'stopped', stopped_at: new Date().toISOString() })
-          .eq('ticker', ticker)
-          .eq('status', 'active');
-        setIsInWatchlist(false);
-      } else {
-        await supabase.from('watchlist_items').insert({
-          ticker,
-          status: 'active',
+        // Remove from watchlist
+        const response = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, action: 'stop' }),
         });
-        setIsInWatchlist(true);
+        const data = await response.json();
+        if (data.success) {
+          setIsInWatchlist(false);
+        }
+      } else {
+        // Add to watchlist
+        const response = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, action: 'add' }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setIsInWatchlist(true);
+        }
       }
     } catch (error) {
       console.error('Error toggling watchlist:', error);
@@ -134,6 +125,7 @@ export default function StockDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -158,20 +150,31 @@ export default function StockDetailPage() {
             </div>
             <p className="text-gray-500 flex items-center gap-2 mt-1">
               <Clock className="w-4 h-4" />
-              {formatDate(result.timestamp)}
+              Real-time data
             </p>
           </div>
         </div>
-        <Button
-          variant={isInWatchlist ? 'secondary' : 'default'}
-          onClick={toggleWatchlist}
-          disabled={watchlistLoading}
-        >
-          <Star className={`w-4 h-4 mr-2 ${isInWatchlist ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-          {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            disabled={fetching}
+          >
+            <RefreshCw className={`w-4 h-4 ${fetching ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            variant={isInWatchlist ? 'secondary' : 'default'}
+            onClick={toggleWatchlist}
+            disabled={watchlistLoading}
+          >
+            <Star className={`w-4 h-4 mr-2 ${isInWatchlist ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+            {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+          </Button>
+        </div>
       </div>
 
+      {/* Price & Score */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -211,11 +214,12 @@ export default function StockDetailPage() {
         </Card>
       </div>
 
+      {/* Chart */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="w-4 h-4 text-cyan-400" />
-            Price Chart (7 Days)
+            Price Chart (3 Months)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -223,6 +227,7 @@ export default function StockDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Technical Indicators */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
@@ -290,6 +295,7 @@ export default function StockDetailPage() {
         </Card>
       </div>
 
+      {/* Volume & Turnover */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">

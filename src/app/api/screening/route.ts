@@ -1,32 +1,22 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { fetchAllStocksScreening } from '@/lib/stocks/fetcher';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('screening_results')
-      .select('*')
-      .order('timestamp', { ascending: false });
-
-    if (error) throw error;
-
-    const latestResults = new Map();
-    data?.forEach((result: any) => {
-      if (!latestResults.has(result.ticker)) {
-        latestResults.set(result.ticker, result);
-      }
+    const results = await fetchAllStocksScreening();
+    
+    return NextResponse.json({
+      success: true,
+      data: results,
+      timestamp: new Date().toISOString(),
+      count: results.length,
     });
-
-    return NextResponse.json(Array.from(latestResults.values()));
   } catch (error) {
-    console.error('Error fetching screening results:', error);
+    console.error('Error in screening API:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch screening results' },
+      { success: false, error: 'Failed to fetch screening data' },
       { status: 500 }
     );
   }

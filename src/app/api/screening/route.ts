@@ -68,11 +68,6 @@ export async function GET() {
     // Filter out null values and ensure proper typing
     const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
     
-    // Calculate data source stats
-    const tradingViewCount = validResults.filter(r => r.dataSource === 'tradingview').length;
-    const yahooCount = validResults.filter(r => r.dataSource === 'yahoo').length;
-    const primarySource = tradingViewCount >= yahooCount ? 'tradingview' : 'yahoo';
-    
     return NextResponse.json({
       success: true,
       data: validResults,
@@ -80,11 +75,6 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       count: validResults.length,
       total_available: allStocks.length,
-      dataSource: {
-        primary: primarySource,
-        tradingview: tradingViewCount,
-        yahoo: yahooCount,
-      },
     });
   } catch (error) {
     console.error('Error in screening API:', error);

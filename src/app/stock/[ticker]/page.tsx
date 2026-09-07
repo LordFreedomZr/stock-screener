@@ -1,0 +1,309 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { StockChart } from '@/components/charts/stock-chart';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ScreeningResult, PriceSnapshot } from '@/types';
+import { createClient } from '@supabase/supabase-js';
+import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor, formatDate } from '@/lib/utils';
+import { 
+  TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
+  Zap, Target, Shield, Clock 
+} from 'lucide-react';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function StockDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const ticker = params.ticker as string;
+
+  const [result, setResult] = useState<ScreeningResult | null>(null);
+  const [priceData, setPriceData] = useState<PriceSnapshot[]>([]);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const { data: screeningData, error: screeningError } = await supabase
+          .from('screening_results')
+          .select('*')
+          .eq('ticker', ticker)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (screeningError) throw screeningError;
+        setResult(screeningData as ScreeningResult);
+
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const { data: priceData, error: priceError } = await supabase
+          .from('price_snapshots')
+          .select('*')
+          .eq('ticker', ticker)
+          .gte('timestamp', sevenDaysAgo.toISOString())
+          .order('timestamp', { ascending: true });
+
+        if (priceError) throw priceError;
+        setPriceData(priceData as PriceSnapshot[]);
+
+        const { data: watchlistData } = await supabase
+          .from('watchlist_items')
+          .select('*')
+          .eq('ticker', ticker)
+          .eq('status', 'active')
+          .limit(1);
+
+        setIsInWatchlist(watchlistData !== null && watchlistData.length > 0);
+      } catch (error) {
+        console.error('Error fetching stock data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [ticker]);
+
+  const toggleWatchlist = async () => {
+    setWatchlistLoading(true);
+    try {
+      if (isInWatchlist) {
+        await supabase
+          .from('watchlist_items')
+          .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+          .eq('ticker', ticker)
+          .eq('status', 'active');
+        setIsInWatchlist(false);
+      } else {
+        await supabase.from('watchlist_items').insert({
+          ticker,
+          status: 'active',
+        });
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Error toggling watchlist:', error);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="w-10 h-10" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+        <Skeleton className="h-[400px] w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-4">
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-white mb-2">Stock Not Found</h2>
+        <p className="text-gray-500 mb-4">No screening data available for {ticker}</p>
+        <Button onClick={() => router.back()}>Go Back</Button>
+      </div>
+    );
+  }
+
+  const isBullish = result.direction === 'bullish';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="text-gray-400 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">{ticker}</h1>
+              <Badge variant={isBullish ? 'success' : 'destructive'}>
+                {isBullish ? (
+                  <TrendingUp className="w-3 h-3 mr-1" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 mr-1" />
+                )}
+                {result.direction}
+              </Badge>
+            </div>
+            <p className="text-gray-500 flex items-center gap-2 mt-1">
+              <Clock className="w-4 h-4" />
+              {formatDate(result.timestamp)}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant={isInWatchlist ? 'secondary' : 'default'}
+          onClick={toggleWatchlist}
+          disabled={watchlistLoading}
+        >
+          <Star className={`w-4 h-4 mr-2 ${isInWatchlist ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+          {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">Current Price</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(result.price)}</p>
+            <p className={getDirectionColor(result.direction)}>
+              {formatPercent(result.price_change_percent)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">Score</p>
+            <p className={`text-2xl font-bold ${getScoreColor(result.score)}`}>
+              {result.score}
+            </p>
+            <p className="text-xs text-gray-500">out of 5</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">Max Profit</p>
+            <p className="text-2xl font-bold text-emerald-400">
+              +{formatPercent(result.max_profit_percent)}
+            </p>
+            <p className="text-xs text-gray-500">{formatCurrency(result.max_profit_nominal)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">Max Loss</p>
+            <p className="text-2xl font-bold text-red-400">
+              {formatPercent(result.max_loss_percent)}
+            </p>
+            <p className="text-xs text-gray-500">{formatCurrency(result.max_loss_nominal)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-gray-800/50 bg-gray-900/50">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            Price Chart (7 Days)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StockChart data={priceData} height={350} />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              <span className="text-sm text-gray-500">RSI</span>
+            </div>
+            <p className="text-xl font-bold text-white">{result.rsi.toFixed(1)}</p>
+            <p className="text-xs text-gray-500">
+              {result.rsi < 30 ? 'Oversold' : result.rsi > 70 ? 'Overbought' : 'Neutral'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm text-gray-500">MACD</span>
+            </div>
+            <p className="text-xl font-bold text-white">{result.macd.toFixed(2)}</p>
+            <p className="text-xs text-gray-500">
+              Signal: {result.macd_signal.toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm text-gray-500">ROC</span>
+            </div>
+            <p className="text-xl font-bold text-white">{result.roc.toFixed(2)}%</p>
+            <p className="text-xs text-gray-500">Rate of Change</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-4 h-4 text-blue-400" />
+              <span className="text-sm text-gray-500">RVOL</span>
+            </div>
+            <p className="text-xl font-bold text-white">{result.rvol.toFixed(2)}x</p>
+            <p className="text-xs text-gray-500">Relative Volume</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4 text-purple-400" />
+              <span className="text-sm text-gray-500">ATR%</span>
+            </div>
+            <p className="text-xl font-bold text-white">{result.atr_percent.toFixed(2)}%</p>
+            <p className="text-xs text-gray-500">Volatility</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="w-4 h-4 text-orange-400" />
+              <span className="text-sm text-gray-500">OBV</span>
+            </div>
+            <p className="text-xl font-bold text-white">{formatNumber(result.obv)}</p>
+            <p className="text-xs text-gray-500">On-Balance Volume</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500 mb-1">Volume</p>
+            <p className="text-xl font-bold text-white">{formatNumber(result.volume)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500 mb-1">Avg Turnover</p>
+            <p className="text-xl font-bold text-white">{formatCurrency(result.turnover_avg)}</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

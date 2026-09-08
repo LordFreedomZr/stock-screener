@@ -9,7 +9,7 @@ export interface IDXStock {
 
 // Comprehensive list of IDX stocks (major + mid cap) - deduplicated
 // Updated: 2026 - covers ~150+ stocks across all sectors
-const FALLBACK_STOCKS: IDXStock[] = [
+export const FALLBACK_STOCKS: IDXStock[] = [
   // === FINANCE / BANKING ===
   { ticker: 'BBCA', name: 'Bank Central Asia', sector: 'Finance' },
   { ticker: 'BBRI', name: 'Bank Rakyat Indonesia', sector: 'Finance' },

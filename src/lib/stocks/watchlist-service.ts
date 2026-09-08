@@ -4,10 +4,12 @@ import {
   fetchTradingViewQuotesBatch,
   TradingViewQuote,
 } from './tradingview-fetcher';
+import { FALLBACK_STOCKS } from './idx-tickers';
 import { WatchlistItem, WatchlistEvaluation } from '@/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const isSupabaseConfigured = () =>
   Boolean(supabaseUrl) &&
@@ -18,6 +20,42 @@ export const isSupabaseConfigured = () =>
 const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+// Admin client with service role key (bypasses RLS) - only for stock registration
+const supabaseAdmin =
+  isSupabaseConfigured() && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
+
+/**
+ * Ensure ticker exists in stocks table. Insert if not found.
+ */
+async function ensureStockExists(ticker: string): Promise<void> {
+  if (!supabase) return;
+
+  const { data: existing } = await supabase
+    .from('stocks')
+    .select('ticker')
+    .eq('ticker', ticker)
+    .maybeSingle();
+
+  if (existing) return;
+
+  const fallback = FALLBACK_STOCKS.find((s) => s.ticker === ticker);
+  const name = fallback?.name || ticker;
+  const sector = fallback?.sector || 'Unknown';
+
+  // Use admin client to bypass RLS for stock registration
+  const client = supabaseAdmin || supabase;
+  const { error } = await client
+    .from('stocks')
+    .insert({ ticker, name, sector, is_active: true });
+
+  if (error) {
+    console.error(`Failed to insert stock ${ticker}:`, error);
+    throw new Error(`Failed to register stock ${ticker}: ${error.message}`);
+  }
+}
 
 export function determineEvaluationStatus(
   direction: 'bullish' | 'bearish',
@@ -88,6 +126,9 @@ export async function addWatchlistItem(
   if (!supabase) {
     throw new Error('Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
   }
+
+  // Ensure ticker exists in stocks table (required for FK constraint)
+  await ensureStockExists(ticker);
 
   let price = options?.price;
   const score = options?.score ?? 3;

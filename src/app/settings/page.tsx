@@ -11,17 +11,11 @@ import { Settings, Save, RotateCcw, Check, X } from 'lucide-react';
 const defaultConfig: ThresholdConfig = {
   id: 'default',
   version: '1.0.0',
-  rsi_period: 14,
   rsi_oversold: 30,
   rsi_overbought: 70,
-  macd_fast: 12,
-  macd_slow: 26,
-  macd_signal: 9,
-  roc_period: 12,
-  atr_period: 14,
   atr_min_percent: 1.5,
   atr_max_percent: 6.0,
-  volume_min_turnover: 1000000000,
+  volume_min_turnover: 500000000,
   rvol_threshold: 2.0,
   weight_momentum: 50,
   weight_volume: 50,
@@ -42,13 +36,24 @@ export default function SettingsPage() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle(); // Use maybeSingle instead of single
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching config:', error);
-        // Use defaults
       } else if (data) {
-        setConfig(data as ThresholdConfig);
+        setConfig({
+          id: data.id || 'default',
+          version: data.version || '1.0.0',
+          rsi_oversold: data.rsi_oversold ?? defaultConfig.rsi_oversold,
+          rsi_overbought: data.rsi_overbought ?? defaultConfig.rsi_overbought,
+          atr_min_percent: data.atr_min_percent ?? defaultConfig.atr_min_percent,
+          atr_max_percent: data.atr_max_percent ?? defaultConfig.atr_max_percent,
+          volume_min_turnover: data.volume_min_turnover ?? defaultConfig.volume_min_turnover,
+          rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
+          weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
+          weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
+          created_at: data.created_at || new Date().toISOString(),
+        });
       }
     } catch (error) {
       console.error('Error fetching config:', error);
@@ -67,14 +72,8 @@ export default function SettingsPage() {
     try {
       const { error } = await supabase.from('threshold_configs').insert({
         version: config.version,
-        rsi_period: config.rsi_period,
         rsi_oversold: config.rsi_oversold,
         rsi_overbought: config.rsi_overbought,
-        macd_fast: config.macd_fast,
-        macd_slow: config.macd_slow,
-        macd_signal: config.macd_signal,
-        roc_period: config.roc_period,
-        atr_period: config.atr_period,
         atr_min_percent: config.atr_min_percent,
         atr_max_percent: config.atr_max_percent,
         volume_min_turnover: config.volume_min_turnover,
@@ -84,7 +83,7 @@ export default function SettingsPage() {
       });
 
       if (error) throw error;
-      
+
       setSaveStatus('success');
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (error) {
@@ -103,24 +102,19 @@ export default function SettingsPage() {
 
   const updateConfig = (key: keyof ThresholdConfig, value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
-    
-    // Validate ranges
+
     if (key === 'weight_momentum' || key === 'weight_volume') {
-      const clampedValue = Math.min(100, Math.max(0, numValue));
-      setConfig(prev => ({
+      const clamped = Math.min(100, Math.max(0, numValue));
+      setConfig((prev) => ({
         ...prev,
-        [key]: clampedValue,
-        ...(key === 'weight_momentum' ? { weight_volume: 100 - clampedValue } : {}),
-        ...(key === 'weight_volume' ? { weight_momentum: 100 - clampedValue } : {}),
+        [key]: clamped,
+        ...(key === 'weight_momentum' ? { weight_volume: 100 - clamped } : {}),
+        ...(key === 'weight_volume' ? { weight_momentum: 100 - clamped } : {}),
       }));
     } else if (key.includes('percent') || key.includes('threshold')) {
-      const clampedValue = Math.max(0, numValue);
-      setConfig(prev => ({ ...prev, [key]: clampedValue }));
-    } else if (key.includes('period')) {
-      const clampedValue = Math.max(1, Math.round(numValue));
-      setConfig(prev => ({ ...prev, [key]: clampedValue }));
+      setConfig((prev) => ({ ...prev, [key]: Math.max(0, numValue) }));
     } else {
-      setConfig(prev => ({ ...prev, [key]: numValue }));
+      setConfig((prev) => ({ ...prev, [key]: numValue }));
     }
   };
 
@@ -134,7 +128,7 @@ export default function SettingsPage() {
               <CardContent className="p-6">
                 <div className="h-6 w-32 bg-gray-800 rounded mb-4 animate-pulse" />
                 <div className="space-y-4">
-                  {[...Array(4)].map((_, j) => (
+                  {[...Array(3)].map((_, j) => (
                     <div key={j} className="h-10 w-full bg-gray-800 rounded animate-pulse" />
                   ))}
                 </div>
@@ -152,52 +146,39 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Settings</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Configure screening thresholds and weights
+            TradingView built-in indicators (RSI 14, MACD 12/26/9, ATR 14) - configure thresholds & weights below
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Save Status Indicator */}
           {saveStatus === 'success' && (
             <div className="flex items-center gap-1 text-emerald-400 text-sm">
-              <Check className="w-4 h-4" />
-              Saved!
+              <Check className="w-4 h-4" /> Saved!
             </div>
           )}
           {saveStatus === 'error' && (
             <div className="flex items-center gap-1 text-red-400 text-sm">
-              <X className="w-4 h-4" />
-              Failed
+              <X className="w-4 h-4" /> Failed
             </div>
           )}
           <Button variant="outline" onClick={handleReset}>
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Reset
+            <RotateCcw className="w-4 h-4 mr-2" /> Reset
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save'}
+            <Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* RSI Thresholds */}
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Settings className="w-4 h-4 text-cyan-400" />
-              RSI Settings
+              RSI Thresholds
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">Period</label>
-              <Input
-                type="number"
-                min="1"
-                value={config.rsi_period}
-                onChange={(e) => updateConfig('rsi_period', e.target.value)}
-              />
-            </div>
             <div className="space-y-2">
               <label className="text-sm text-gray-400">Oversold Level</label>
               <Input
@@ -221,61 +202,15 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* ATR & Volatility */}
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Settings className="w-4 h-4 text-cyan-400" />
-              MACD Settings
+              ATR & Volatility
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">Fast Period</label>
-              <Input
-                type="number"
-                min="1"
-                value={config.macd_fast}
-                onChange={(e) => updateConfig('macd_fast', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">Slow Period</label>
-              <Input
-                type="number"
-                min="1"
-                value={config.macd_slow}
-                onChange={(e) => updateConfig('macd_slow', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">Signal Period</label>
-              <Input
-                type="number"
-                min="1"
-                value={config.macd_signal}
-                onChange={(e) => updateConfig('macd_signal', e.target.value)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-800/50 bg-gray-900/50">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Settings className="w-4 h-4 text-cyan-400" />
-              ATR & Volatility Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">ATR Period</label>
-              <Input
-                type="number"
-                min="1"
-                value={config.atr_period}
-                onChange={(e) => updateConfig('atr_period', e.target.value)}
-              />
-            </div>
             <div className="space-y-2">
               <label className="text-sm text-gray-400">Min ATR %</label>
               <Input
@@ -299,6 +234,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Volume */}
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -329,43 +265,42 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-gray-800/50 bg-gray-900/50 md:col-span-2">
+        {/* Score Weights */}
+        <Card className="border-gray-800/50 bg-gray-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Settings className="w-4 h-4 text-cyan-400" />
               Score Weights
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm text-gray-400">Momentum Weight</label>
-                  <span className="text-sm text-white">{config.weight_momentum}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={config.weight_momentum}
-                  onChange={(e) => updateConfig('weight_momentum', parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Momentum Weight</label>
+                <span className="text-sm text-white">{config.weight_momentum}%</span>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm text-gray-400">Volume Weight</label>
-                  <span className="text-sm text-white">{config.weight_volume}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={config.weight_volume}
-                  onChange={(e) => updateConfig('weight_volume', parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={config.weight_momentum}
+                onChange={(e) => updateConfig('weight_momentum', parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Volume Weight</label>
+                <span className="text-sm text-white">{config.weight_volume}%</span>
               </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={config.weight_volume}
+                onChange={(e) => updateConfig('weight_volume', parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
             </div>
           </CardContent>
         </Card>

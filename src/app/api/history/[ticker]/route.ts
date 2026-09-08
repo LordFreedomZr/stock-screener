@@ -3,26 +3,28 @@ import { fetchHistory } from '@/lib/stocks/fetcher';
 
 export const dynamic = 'force-dynamic';
 
+const TICKER_REGEX = /^[A-Z0-9]{1,10}$/i;
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   try {
     const { ticker } = await params;
-    
-    if (!ticker || typeof ticker !== 'string') {
+
+    if (!ticker || typeof ticker !== 'string' || !TICKER_REGEX.test(ticker)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid ticker' },
+        { success: false, error: 'Invalid ticker format' },
         { status: 400 }
       );
     }
 
-    const history = await fetchHistory(ticker, '3mo', '1d');
-    
-    // Convert to PriceSnapshot format
-    const snapshots = history.map(h => ({
-      id: `${ticker}-${h.timestamp}`,
-      ticker: ticker,
+    const cleanTicker = ticker.toUpperCase();
+    const history = await fetchHistory(cleanTicker, '3mo', '1d');
+
+    const snapshots = history.map((h) => ({
+      id: `${cleanTicker}-${h.timestamp}`,
+      ticker: cleanTicker,
       timestamp: new Date(h.timestamp * 1000).toISOString(),
       open: h.open,
       high: h.high,
@@ -37,7 +39,7 @@ export async function GET(
       data: snapshots,
       count: snapshots.length,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching history:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch history' },

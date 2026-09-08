@@ -1,33 +1,19 @@
 import { NextResponse } from 'next/server';
-import { fetchAllStocksScreening, ScoreConfig } from '@/lib/stocks/fetcher';
-import { getAllIDXStocks } from '@/lib/stocks/idx-tickers';
+import { fetchTradingViewScreening, ScoreConfig, DEFAULT_SCORE_CONFIG } from '@/lib/stocks/tradingview-fetcher';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-const defaultScoreConfig: ScoreConfig = {
-  rsi_period: 14,
-  rsi_oversold: 30,
-  rsi_overbought: 70,
-  macd_fast: 12,
-  macd_slow: 26,
-  macd_signal: 9,
-  roc_period: 12,
-  atr_period: 14,
-  atr_min_percent: 1.5,
-  atr_max_percent: 6.0,
-  volume_min_turnover: 1000000000,
-  rvol_threshold: 2.0,
-  weight_momentum: 50,
-  weight_volume: 50,
-};
+const supabase =
+  supabaseUrl && !supabaseUrl.includes('placeholder')
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 async function fetchLatestConfig(): Promise<ScoreConfig> {
+  if (!supabase) return DEFAULT_SCORE_CONFIG;
   try {
     const { data } = await supabase
       .from('threshold_configs')
@@ -36,51 +22,41 @@ async function fetchLatestConfig(): Promise<ScoreConfig> {
       .limit(1)
       .maybeSingle();
 
-    if (!data) return defaultScoreConfig;
+    if (!data) return DEFAULT_SCORE_CONFIG;
 
     return {
-      rsi_period: data.rsi_period ?? defaultScoreConfig.rsi_period,
-      rsi_oversold: data.rsi_oversold ?? defaultScoreConfig.rsi_oversold,
-      rsi_overbought: data.rsi_overbought ?? defaultScoreConfig.rsi_overbought,
-      macd_fast: data.macd_fast ?? defaultScoreConfig.macd_fast,
-      macd_slow: data.macd_slow ?? defaultScoreConfig.macd_slow,
-      macd_signal: data.macd_signal ?? defaultScoreConfig.macd_signal,
-      roc_period: data.roc_period ?? defaultScoreConfig.roc_period,
-      atr_period: data.atr_period ?? defaultScoreConfig.atr_period,
-      atr_min_percent: data.atr_min_percent ?? defaultScoreConfig.atr_min_percent,
-      atr_max_percent: data.atr_max_percent ?? defaultScoreConfig.atr_max_percent,
-      volume_min_turnover: data.volume_min_turnover ?? defaultScoreConfig.volume_min_turnover,
-      rvol_threshold: data.rvol_threshold ?? defaultScoreConfig.rvol_threshold,
-      weight_momentum: data.weight_momentum ?? defaultScoreConfig.weight_momentum,
-      weight_volume: data.weight_volume ?? defaultScoreConfig.weight_volume,
+      rsi_oversold: data.rsi_oversold ?? DEFAULT_SCORE_CONFIG.rsi_oversold,
+      rsi_overbought: data.rsi_overbought ?? DEFAULT_SCORE_CONFIG.rsi_overbought,
+      atr_min_percent: data.atr_min_percent ?? DEFAULT_SCORE_CONFIG.atr_min_percent,
+      atr_max_percent: data.atr_max_percent ?? DEFAULT_SCORE_CONFIG.atr_max_percent,
+      volume_min_turnover: data.volume_min_turnover ?? DEFAULT_SCORE_CONFIG.volume_min_turnover,
+      rvol_threshold: data.rvol_threshold ?? DEFAULT_SCORE_CONFIG.rvol_threshold,
+      weight_momentum: data.weight_momentum ?? DEFAULT_SCORE_CONFIG.weight_momentum,
+      weight_volume: data.weight_volume ?? DEFAULT_SCORE_CONFIG.weight_volume,
     };
   } catch {
-    return defaultScoreConfig;
+    return DEFAULT_SCORE_CONFIG;
   }
 }
 
 export async function GET() {
+  const startTime = Date.now();
   try {
     const config = await fetchLatestConfig();
-    const allStocks = await getAllIDXStocks();
-    const results = await fetchAllStocksScreening(config);
-    
-    // Filter out null values and ensure proper typing
-    const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
-    
+    const results = await fetchTradingViewScreening(config, 150);
+
     return NextResponse.json({
       success: true,
-      data: validResults,
-      config_version: config.rsi_period + '-' + config.macd_fast,
+      data: results,
+      config_version: `${config.rsi_oversold}-${config.rsi_overbought}`,
       timestamp: new Date().toISOString(),
-      count: validResults.length,
-      total_available: allStocks.length,
+      count: results.length,
+      dataSource: 'tradingview',
+      response_time_ms: Date.now() - startTime,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch screening data';
     console.error('Error in screening API:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch screening data' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

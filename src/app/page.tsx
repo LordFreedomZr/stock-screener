@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterState, ScreeningResult } from '@/types';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatTime } from '@/lib/utils';
 import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 
 type SpikeTab = 'yesterday' | '3d' | '5d';
@@ -102,7 +102,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">Stock Screener</h1>
           <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
             <Clock className="w-4 h-4" />
-            {lastUpdate ? `Last updated: ${formatDate(lastUpdate)}` : 'Loading...'}
+            {lastUpdate ? `Last updated: ${formatTime(lastUpdate)}` : 'Loading...'}
           </p>
         </div>
         <Button
@@ -277,7 +277,7 @@ export default function DashboardPage() {
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardContent className="p-4">
           <p className="text-xs text-gray-500 text-center">
-            Data source: Yahoo Finance | 200+ IDX stocks | Real-time quotes
+            Data source: TradingView Live Feed | 150+ Top IDX Stocks | Real-time Quotes & Indicators
           </p>
         </CardContent>
       </Card>
@@ -397,10 +397,4 @@ function SpikeContent({
   );
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
-}
+

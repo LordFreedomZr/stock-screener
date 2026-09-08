@@ -6,8 +6,15 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
-    // Verify cron secret (for security)
-    const expectedSecret = process.env.CRON_SECRET || 'screener_secret_key_2026';
+    const expectedSecret = process.env.CRON_SECRET;
+    if (!expectedSecret) {
+      console.error('CRON_SECRET environment variable is not set');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json(
@@ -16,7 +23,6 @@ export async function GET(request: Request) {
       );
     }
 
-    console.log('Cron triggered: evaluating watchlist...');
     const result = await evaluateWatchlist();
 
     return NextResponse.json({
@@ -25,11 +31,9 @@ export async function GET(request: Request) {
       summary: result.summary,
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('Error in evaluate-watchlist cron:', error);
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

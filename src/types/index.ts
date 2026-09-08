@@ -23,6 +23,7 @@ export interface ScreeningResult {
   id: string;
   ticker: string;
   name: string;
+  sector?: string;
   timestamp: string;
   score: number;
   direction: 'bullish' | 'bearish';
@@ -42,7 +43,7 @@ export interface ScreeningResult {
   max_loss_nominal: number;
   volume: number;
   config_version: string;
-  dataSource: 'yahoo';
+  dataSource: 'tradingview' | 'yahoo';
   volume_spike?: {
     yesterday: number;
     avg_3d: number;
@@ -82,14 +83,8 @@ export interface WatchlistEvaluation {
 export interface ThresholdConfig {
   id: string;
   version: string;
-  rsi_period: number;
   rsi_oversold: number;
   rsi_overbought: number;
-  macd_fast: number;
-  macd_slow: number;
-  macd_signal: number;
-  roc_period: number;
-  atr_period: number;
   atr_min_percent: number;
   atr_max_percent: number;
   volume_min_turnover: number;

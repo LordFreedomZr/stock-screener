@@ -371,22 +371,40 @@ export async function evaluateWatchlist(filterTicker?: string): Promise<{
 
   if (supabase) {
     try {
-      await supabase.from('accuracy_stats').upsert(
-        {
-          indicator: 'Overall System',
-          combination: 'TradingView Real-Time Feed',
-          score_range: '1-5',
-          total_evaluations: total,
-          correct_count: benar,
-          floating_count: floating,
-          missed_count: meleset,
-          hit_rate: Math.round(hitRate * 100) / 100,
-          updated_at: nowIso,
-        },
-        { onConflict: 'indicator' }
-      );
-    } catch {
-      // Ignore accuracy stats update failures
+      const statsData = {
+        indicator: 'Overall System',
+        combination: 'TradingView Real-Time Feed',
+        score_range: '1-5',
+        total_evaluations: total,
+        correct_count: benar,
+        floating_count: floating,
+        missed_count: meleset,
+        hit_rate: Math.round(hitRate * 100) / 100,
+        updated_at: nowIso,
+      };
+
+      // Use admin client to bypass RLS for accuracy_stats
+      const adminClient = supabaseAdmin || supabase;
+
+      // Check if row exists first (no UNIQUE constraint on indicator)
+      const { data: existing } = await adminClient
+        .from('accuracy_stats')
+        .select('id')
+        .eq('indicator', 'Overall System')
+        .maybeSingle();
+
+      if (existing) {
+        await adminClient
+          .from('accuracy_stats')
+          .update(statsData)
+          .eq('id', existing.id);
+      } else {
+        await adminClient
+          .from('accuracy_stats')
+          .insert({ id: crypto.randomUUID(), ...statsData });
+      }
+    } catch (err) {
+      console.error('Failed to update accuracy stats:', err);
     }
   }
 

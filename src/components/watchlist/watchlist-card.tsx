@@ -41,8 +41,10 @@ export function WatchlistCard({ item, onStop, onEvaluate }: WatchlistCardProps) 
 
   return (
     <Card
-      className={`hover:border-cyan-500/50 transition-all duration-300 ${
-        !isActive ? 'opacity-60' : ''
+      className={`transition-all duration-300 ${
+        isActive
+          ? 'hover:border-cyan-500/50'
+          : 'opacity-50 grayscale border-gray-800/30 bg-gray-900/30'
       }`}
     >
       <CardHeader className="pb-3">

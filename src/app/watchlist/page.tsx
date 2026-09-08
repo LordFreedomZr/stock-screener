@@ -14,7 +14,7 @@ export default function WatchlistPage() {
   const [fetching, setFetching] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [evalNotice, setEvalNotice] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('active');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchWatchlist = useCallback(async () => {

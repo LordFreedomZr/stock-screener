@@ -24,12 +24,10 @@ export async function GET() {
   try {
     const data = await getWatchlistItems();
     return NextResponse.json({ success: true, data });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch watchlist';
     console.error('Error fetching watchlist:', error);
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to fetch watchlist' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -38,7 +36,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { ticker, action, price, score, direction } = body;
 
-    // Validate inputs
     if (!validateTicker(ticker)) {
       return NextResponse.json(
         { success: false, error: 'Invalid ticker format' },
@@ -66,7 +63,7 @@ export async function POST(request: Request) {
         success: true,
         data: item,
         evaluation,
-        message: `${cleanTicker} berhasil ditambahkan ke watchlist dengan evaluasi awal.`,
+        message: `${cleanTicker} berhasil ditambahkan ke watchlist.`,
       });
     } else {
       const stopped = await stopWatchlistItem(cleanTicker);
@@ -82,12 +79,16 @@ export async function POST(request: Request) {
         message: `${cleanTicker} berhasil dihentikan dari pemantauan aktif.`,
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update watchlist';
     console.error('Error updating watchlist:', error);
-    const status = error.message?.includes('already active') ? 409 : 500;
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to update watchlist' },
-      { status }
-    );
+
+    // Determine appropriate status code
+    let status = 500;
+    if (message.includes('already active')) status = 409;
+    else if (message.includes('not configured')) status = 503;
+    else if (message.includes('Invalid')) status = 400;
+
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

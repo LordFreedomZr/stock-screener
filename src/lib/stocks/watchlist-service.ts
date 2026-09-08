@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import {
   fetchTradingViewQuote,
@@ -21,37 +19,6 @@ const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-const DATA_DIR = path.join(process.cwd(), '.data');
-const DATA_FILE = path.join(DATA_DIR, 'watchlist_store.json');
-
-interface LocalStore {
-  items: WatchlistItem[];
-  evaluations: WatchlistEvaluation[];
-}
-
-function ensureDataFile(): LocalStore {
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    if (!fs.existsSync(DATA_FILE)) {
-      const initial: LocalStore = { items: [], evaluations: [] };
-      fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
-      return initial;
-    }
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')) as LocalStore;
-  } catch {
-    return { items: [], evaluations: [] };
-  }
-}
-
-function saveLocalStore(store: LocalStore) {
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error saving local watchlist store:', error);
-  }
-}
-
 export function determineEvaluationStatus(
   direction: 'bullish' | 'bearish',
   priceMovementPercent: number
@@ -63,183 +30,144 @@ export function determineEvaluationStatus(
 
 /**
  * Get all watchlist items with their latest evaluation.
- * Uses batch query to avoid N+1 problem.
  */
 export async function getWatchlistItems(): Promise<WatchlistItem[]> {
-  if (supabase) {
-    try {
-      const { data: items, error } = await supabase
-        .from('watchlist_items')
-        .select('*')
-        .order('marked_at', { ascending: false });
+  if (!supabase) {
+    console.error('Supabase not configured - cannot fetch watchlist');
+    return [];
+  }
 
-      if (error || !items) throw error;
+  const { data: items, error: itemsError } = await supabase
+    .from('watchlist_items')
+    .select('*')
+    .order('marked_at', { ascending: false });
 
-      // Batch fetch all evaluations in one query (fixes N+1)
-      const itemIds = items.map((i: { id: string }) => i.id);
-      const { data: allEvals } = await supabase
-        .from('watchlist_evaluations')
-        .select('*')
-        .in('watchlist_item_id', itemIds)
-        .order('timestamp', { ascending: false });
+  if (itemsError) {
+    console.error('Error fetching watchlist items:', itemsError);
+    throw new Error(`Failed to fetch watchlist: ${itemsError.message}`);
+  }
 
-      // Group evaluations by item_id, pick latest per item
-      const evalByItem = new Map<string, WatchlistEvaluation>();
-      for (const ev of allEvals || []) {
-        const existing = evalByItem.get(ev.watchlist_item_id);
-        if (!existing || new Date(ev.timestamp) > new Date(existing.timestamp)) {
-          evalByItem.set(ev.watchlist_item_id, ev as unknown as WatchlistEvaluation);
-        }
-      }
+  if (!items || items.length === 0) return [];
 
-      return items.map((item: Record<string, unknown>) => ({
-        ...item,
-        latest_evaluation: evalByItem.get(item.id as string) || null,
-      })) as unknown as WatchlistItem[];
-    } catch (err) {
-      console.warn('Supabase getWatchlist error, falling back to local store:', err);
+  // Batch fetch all evaluations in one query
+  const itemIds = items.map((i) => i.id);
+  const { data: allEvals, error: evalsError } = await supabase
+    .from('watchlist_evaluations')
+    .select('*')
+    .in('watchlist_item_id', itemIds)
+    .order('timestamp', { ascending: false });
+
+  if (evalsError) {
+    console.error('Error fetching evaluations:', evalsError);
+    // Return items without evaluations rather than failing completely
+    return items.map((item) => ({ ...item, latest_evaluation: null })) as unknown as WatchlistItem[];
+  }
+
+  // Group evaluations by item_id, pick latest per item
+  const evalByItem = new Map<string, WatchlistEvaluation>();
+  for (const ev of allEvals || []) {
+    const existing = evalByItem.get(ev.watchlist_item_id);
+    if (!existing || new Date(ev.timestamp) > new Date(existing.timestamp)) {
+      evalByItem.set(ev.watchlist_item_id, ev as unknown as WatchlistEvaluation);
     }
   }
 
-  const store = ensureDataFile();
-  return store.items.map((item) => {
-    const latest = store.evaluations
-      .filter((e) => e.watchlist_item_id === item.id || e.ticker === item.ticker)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    return { ...item, latest_evaluation: latest[0] || null };
-  });
+  return items.map((item) => ({
+    ...item,
+    latest_evaluation: evalByItem.get(item.id) || null,
+  })) as unknown as WatchlistItem[];
 }
 
+/**
+ * Add a stock to watchlist. Supabase only - no local fallback.
+ */
 export async function addWatchlistItem(
   ticker: string,
   options?: { price?: number; score?: number; direction?: 'bullish' | 'bearish' }
 ): Promise<{ item: WatchlistItem; evaluation: WatchlistEvaluation }> {
+  if (!supabase) {
+    throw new Error('Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+  }
+
   let price = options?.price;
   const score = options?.score ?? 3;
   let direction = options?.direction ?? 'bullish';
 
+  // Fetch real-time price from TradingView if not provided
   if (!price || price <= 0) {
-    const tvQuote = await fetchTradingViewQuote(ticker);
-    if (tvQuote && tvQuote.price > 0) {
-      price = tvQuote.price;
-      if (!options?.direction) direction = tvQuote.changePercent >= 0 ? 'bullish' : 'bearish';
-    } else {
-      price = 1000;
+    try {
+      const tvQuote = await fetchTradingViewQuote(ticker);
+      if (tvQuote && tvQuote.price > 0) {
+        price = tvQuote.price;
+        if (!options?.direction) {
+          direction = tvQuote.changePercent >= 0 ? 'bullish' : 'bearish';
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch TradingView quote for price:', err);
     }
+    if (!price || price <= 0) price = 1000; // Final fallback
   }
 
   const nowIso = new Date().toISOString();
 
-  if (supabase) {
-    try {
-      const { data: existingActive } = await supabase
-        .from('watchlist_items')
-        .select('id')
-        .eq('ticker', ticker)
-        .eq('status', 'active')
-        .maybeSingle();
+  // Check if already active
+  const { data: existingActive, error: checkError } = await supabase
+    .from('watchlist_items')
+    .select('id')
+    .eq('ticker', ticker)
+    .eq('status', 'active')
+    .maybeSingle();
 
-      if (existingActive) throw new Error('Stock already active in watchlist');
+  if (checkError) {
+    throw new Error(`Failed to check watchlist: ${checkError.message}`);
+  }
 
-      const { data: existingStopped } = await supabase
-        .from('watchlist_items')
-        .select('id')
-        .eq('ticker', ticker)
-        .eq('status', 'stopped')
-        .maybeSingle();
+  if (existingActive) {
+    throw new Error('Stock already active in watchlist');
+  }
 
-      let targetItem: Record<string, unknown>;
+  // Check if there's a stopped entry to reactivate
+  const { data: existingStopped } = await supabase
+    .from('watchlist_items')
+    .select('id')
+    .eq('ticker', ticker)
+    .eq('status', 'stopped')
+    .maybeSingle();
 
-      if (existingStopped) {
-        const { data: updated, error } = await supabase
-          .from('watchlist_items')
-          .update({ status: 'active', stopped_at: null, marked_at: nowIso })
-          .eq('id', existingStopped.id)
-          .select()
-          .single();
-        if (error) throw error;
-        targetItem = updated;
-      } else {
-        const { data: inserted, error } = await supabase
-          .from('watchlist_items')
-          .insert({ ticker, status: 'active', marked_at: nowIso })
-          .select()
-          .single();
-        if (error) throw error;
-        targetItem = inserted;
-      }
+  let targetItem: Record<string, unknown>;
 
-      const initialEval: WatchlistEvaluation = {
-        id: crypto.randomUUID(),
-        watchlist_item_id: targetItem.id as string,
-        ticker,
-        timestamp: nowIso,
-        current_price: price,
-        entry_price: price,
-        price_movement_percent: 0,
-        price_movement_nominal: 0,
-        analysis_score: score,
-        analysis_direction: direction,
-        status: 'floating',
-        notes: `Entry awal ditambahkan pada harga Rp ${price.toLocaleString('id-ID')}`,
-      };
+  if (existingStopped) {
+    // Reactivate stopped entry
+    const { data: updated, error: updateError } = await supabase
+      .from('watchlist_items')
+      .update({ status: 'active', stopped_at: null, marked_at: nowIso })
+      .eq('id', existingStopped.id)
+      .select()
+      .single();
 
-      await supabase.from('watchlist_evaluations').insert({
-        id: initialEval.id,
-        watchlist_item_id: targetItem.id,
-        ticker,
-        timestamp: initialEval.timestamp,
-        current_price: initialEval.current_price,
-        price_movement_percent: initialEval.price_movement_percent,
-        price_movement_nominal: initialEval.price_movement_nominal,
-        analysis_score: initialEval.analysis_score,
-        analysis_direction: initialEval.analysis_direction,
-        status: initialEval.status,
-        notes: initialEval.notes,
-      });
-
-      return { item: { ...targetItem, latest_evaluation: initialEval } as unknown as WatchlistItem, evaluation: initialEval };
-    } catch (err: unknown) {
-      if (err instanceof Error && err.message === 'Stock already active in watchlist') throw err;
-      console.warn('Supabase add error, continuing with local store:', err);
+    if (updateError) {
+      throw new Error(`Failed to reactivate watchlist item: ${updateError.message}`);
     }
-  }
-
-  const store = ensureDataFile();
-  const existingActiveIdx = store.items.findIndex((i) => i.ticker === ticker && i.status === 'active');
-  if (existingActiveIdx >= 0) throw new Error('Stock already active in watchlist');
-
-  const existingStoppedIdx = store.items.findIndex((i) => i.ticker === ticker && i.status === 'stopped');
-  let item: WatchlistItem;
-
-  if (existingStoppedIdx >= 0) {
-    store.items[existingStoppedIdx] = {
-      ...store.items[existingStoppedIdx],
-      status: 'active',
-      stopped_at: null,
-      marked_at: nowIso,
-      entry_price: price,
-      entry_score: score,
-      entry_direction: direction,
-    };
-    item = store.items[existingStoppedIdx];
+    targetItem = updated;
   } else {
-    item = {
-      id: crypto.randomUUID(),
-      ticker,
-      status: 'active',
-      marked_at: nowIso,
-      stopped_at: null,
-      entry_price: price,
-      entry_score: score,
-      entry_direction: direction,
-    };
-    store.items.unshift(item);
+    // Insert new entry
+    const { data: inserted, error: insertError } = await supabase
+      .from('watchlist_items')
+      .insert({ ticker, status: 'active', marked_at: nowIso })
+      .select()
+      .single();
+
+    if (insertError) {
+      throw new Error(`Failed to add watchlist item: ${insertError.message}`);
+    }
+    targetItem = inserted;
   }
 
+  // Create initial evaluation
   const initialEval: WatchlistEvaluation = {
     id: crypto.randomUUID(),
-    watchlist_item_id: item.id,
+    watchlist_item_id: targetItem.id as string,
     ticker,
     timestamp: nowIso,
     current_price: price,
@@ -252,41 +180,55 @@ export async function addWatchlistItem(
     notes: `Entry awal ditambahkan pada harga Rp ${price.toLocaleString('id-ID')}`,
   };
 
-  store.evaluations.unshift(initialEval);
-  saveLocalStore(store);
-  return { item: { ...item, latest_evaluation: initialEval }, evaluation: initialEval };
+  const { error: evalInsertError } = await supabase.from('watchlist_evaluations').insert({
+    id: initialEval.id,
+    watchlist_item_id: targetItem.id,
+    ticker,
+    timestamp: initialEval.timestamp,
+    current_price: initialEval.current_price,
+    price_movement_percent: initialEval.price_movement_percent,
+    price_movement_nominal: initialEval.price_movement_nominal,
+    analysis_score: initialEval.analysis_score,
+    analysis_direction: initialEval.analysis_direction,
+    status: initialEval.status,
+    notes: initialEval.notes,
+  });
+
+  if (evalInsertError) {
+    console.error('Failed to insert initial evaluation:', evalInsertError);
+    // Item was added but evaluation failed - still return success
+  }
+
+  return {
+    item: { ...targetItem, latest_evaluation: initialEval } as unknown as WatchlistItem,
+    evaluation: initialEval,
+  };
 }
 
+/**
+ * Stop watching an item.
+ */
 export async function stopWatchlistItem(ticker: string): Promise<boolean> {
+  if (!supabase) {
+    throw new Error('Supabase not configured');
+  }
+
   const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from('watchlist_items')
+    .update({ status: 'stopped', stopped_at: nowIso })
+    .eq('ticker', ticker)
+    .eq('status', 'active');
 
-  if (supabase) {
-    try {
-      const { error } = await supabase
-        .from('watchlist_items')
-        .update({ status: 'stopped', stopped_at: nowIso })
-        .eq('ticker', ticker)
-        .eq('status', 'active');
-      if (!error) return true;
-    } catch (err) {
-      console.warn('Supabase stop error, falling back to local store:', err);
-    }
+  if (error) {
+    throw new Error(`Failed to stop watchlist item: ${error.message}`);
   }
 
-  const store = ensureDataFile();
-  const index = store.items.findIndex((i) => i.ticker === ticker && i.status === 'active');
-  if (index >= 0) {
-    store.items[index].status = 'stopped';
-    store.items[index].stopped_at = nowIso;
-    saveLocalStore(store);
-    return true;
-  }
-  return false;
+  return true;
 }
 
 /**
  * Evaluates active watchlist items against real-time live prices.
- * Uses TradingView batch fetching for instant evaluation.
  */
 export async function evaluateWatchlist(filterTicker?: string): Promise<{
   items: WatchlistItem[];
@@ -330,7 +272,7 @@ export async function evaluateWatchlist(filterTicker?: string): Promise<{
       const direction: 'bullish' | 'bearish' =
         item.entry_direction ||
         item.latest_evaluation?.analysis_direction ||
-        (tvQuote?.changePercent || 0) >= 0 ? 'bullish' : 'bearish';
+        ((tvQuote?.changePercent || 0) >= 0 ? 'bullish' : 'bearish');
 
       const score = item.entry_score || item.latest_evaluation?.analysis_score || 3;
 
@@ -356,22 +298,21 @@ export async function evaluateWatchlist(filterTicker?: string): Promise<{
       updatedEvals.push(evaluationRecord);
 
       if (supabase) {
-        try {
-          await supabase.from('watchlist_evaluations').insert({
-            id: evaluationRecord.id,
-            watchlist_item_id: item.id,
-            ticker: item.ticker,
-            timestamp: evaluationRecord.timestamp,
-            current_price: evaluationRecord.current_price,
-            price_movement_percent: evaluationRecord.price_movement_percent,
-            price_movement_nominal: evaluationRecord.price_movement_nominal,
-            analysis_score: evaluationRecord.analysis_score,
-            analysis_direction: evaluationRecord.analysis_direction,
-            status: evaluationRecord.status,
-            notes: evaluationRecord.notes,
-          });
-        } catch {
-          // Ignore individual insert failures
+        const { error: insertErr } = await supabase.from('watchlist_evaluations').insert({
+          id: evaluationRecord.id,
+          watchlist_item_id: item.id,
+          ticker: item.ticker,
+          timestamp: evaluationRecord.timestamp,
+          current_price: evaluationRecord.current_price,
+          price_movement_percent: evaluationRecord.price_movement_percent,
+          price_movement_nominal: evaluationRecord.price_movement_nominal,
+          analysis_score: evaluationRecord.analysis_score,
+          analysis_direction: evaluationRecord.analysis_direction,
+          status: evaluationRecord.status,
+          notes: evaluationRecord.notes,
+        });
+        if (insertErr) {
+          console.error(`Failed to insert evaluation for ${item.ticker}:`, insertErr);
         }
       }
     } catch (err) {
@@ -379,12 +320,7 @@ export async function evaluateWatchlist(filterTicker?: string): Promise<{
     }
   }
 
-  const store = ensureDataFile();
-  for (const ev of updatedEvals) {
-    store.evaluations.unshift(ev);
-  }
-  saveLocalStore(store);
-
+  // Re-fetch all items with fresh evaluations
   const refreshedItems = await getWatchlistItems();
   const total = refreshedItems.length;
   const benar = refreshedItems.filter((i) => i.latest_evaluation?.status === 'benar').length;
@@ -409,7 +345,7 @@ export async function evaluateWatchlist(filterTicker?: string): Promise<{
         { onConflict: 'indicator' }
       );
     } catch {
-      // Ignore
+      // Ignore accuracy stats update failures
     }
   }
 

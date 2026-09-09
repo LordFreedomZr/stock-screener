@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ThresholdConfig } from '@/types';
-import { Settings, Save, RotateCcw, Check, X, Zap, BarChart3, Activity, TrendingUp } from 'lucide-react';
+import { Settings, Save, RotateCcw, Check, X, Zap, BarChart3, Activity, TrendingUp, Info } from 'lucide-react';
 
 const defaultConfig: ThresholdConfig = {
   id: 'default',
@@ -29,6 +29,11 @@ interface IndicatorDef {
   category: 'momentum' | 'volume' | 'volatility';
   enabled: boolean;
   params: { key: string; label: string; min: number; max: number; step: number }[];
+  info: {
+    fungsi: string;
+    caraBaca: string;
+    tips: string;
+  };
 }
 
 const defaultIndicators: IndicatorDef[] = [
@@ -42,6 +47,11 @@ const defaultIndicators: IndicatorDef[] = [
       { key: 'rsi_oversold', label: 'Oversold', min: 0, max: 50, step: 1 },
       { key: 'rsi_overbought', label: 'Overbought', min: 50, max: 100, step: 1 },
     ],
+    info: {
+      fungsi: 'Mengukur kecepatan dan perubahan harga saham. RSI bergerak antara 0-100. Semakin tinggi RSI, semakin kuat momentum naik. Semakin rendah, semakin kuat momentum turun.',
+      caraBaca: 'RSI < 30 = Oversold (kemungkinan harga akan naik). RSI > 70 = Overbought (kemungkinan harga akan turun). RSI 40-60 = Netral/tidak ada tren kuat.',
+      tips: 'Gunakan RSI oversold (30) sebagai sinyal beli, overbought (70) sebagai sinyal jual. Kombinasikan dengan trendline untuk konfirmasi.',
+    },
   },
   {
     id: 'macd',
@@ -50,6 +60,11 @@ const defaultIndicators: IndicatorDef[] = [
     category: 'momentum',
     enabled: true,
     params: [],
+    info: {
+      fungsi: 'Menunjukkan hubungan antara dua moving average (12 hari dan 26 hari). MACD Line = EMA12 - EMA26. Signal Line = EMA9 dari MACD Line. Histogram = perbedaan antara MACD dan Signal.',
+      caraBaca: 'MACD Line di atas Signal Line = Bullish (harga naik). MACD Line di bawah Signal Line = Bearish (harga turun). Histogram positif = momentum naik, negatif = momentum turun.',
+      tips: 'Cari crossover: MACD cross ke atas Signal = sinyal beli. MACD cross ke bawah Signal = sinyal jual. Semakin besar histogram, semakin kuat momentum.',
+    },
   },
   {
     id: 'atr',
@@ -61,6 +76,11 @@ const defaultIndicators: IndicatorDef[] = [
       { key: 'atr_min_percent', label: 'Min ATR %', min: 0, max: 10, step: 0.1 },
       { key: 'atr_max_percent', label: 'Max ATR %', min: 0, max: 20, step: 0.1 },
     ],
+    info: {
+      fungsi: 'Mengukur volatilitas (kenaikan/penurunan harga rata-rata) dalam persentase dari harga. ATR tinggi = harga bergerak liar, ATR rendah = harga stabil.',
+      caraBaca: 'ATR < 1.5% = Saham kurang volatile (cocok untuk investor konservatif). ATR 1.5-6% = Volatile moderat (cocok untuk swing trading). ATR > 6% = Sangat volatile (risiko tinggi, potensi untung besar).',
+      tips: 'Filter saham dengan ATR terlalu rendah (kurang minat) dan terlalu tinggi (terlalu berisiko). ATR 1.5-6% adalah range ideal untuk trading aktif.',
+    },
   },
   {
     id: 'rvol',
@@ -71,6 +91,11 @@ const defaultIndicators: IndicatorDef[] = [
     params: [
       { key: 'rvol_threshold', label: 'Min RVOL', min: 0, max: 10, step: 0.1 },
     ],
+    info: {
+      fungsi: 'Membandingkan volume perdagangan hari ini dengan rata-rata 10 hari terakhir. RVOL 2.0 = volume 2x lipat dari biasanya. Menunjukkan apakah ada minat besar dari institusi atau ritel.',
+      caraBaca: 'RVOL < 1.0 = Volume rendah, kurang minat. RVOL 1.0-2.0 = Normal. RVOL > 2.0 = Volume tinggi, ada minat besar. RVOL > 3.0 = Sangat tinggi, kemungkinan ada berita/hype.',
+      tips: 'Saham dengan RVOL tinggi lebih likuid dan lebih mudah masuk/keluar. Gunakan RVOL > 2.0 sebagai filter untuk memastikan ada minat yang cukup.',
+    },
   },
   {
     id: 'turnover',
@@ -81,6 +106,11 @@ const defaultIndicators: IndicatorDef[] = [
     params: [
       { key: 'volume_min_turnover', label: 'Min Turnover (Rp)', min: 0, max: 10000000000, step: 100000000 },
     ],
+    info: {
+      fungsi: 'Memastikan saham memiliki likuiditas yang cukup agar mudah dibeli/dijual tanpa menggerakkan harga. Turnover = total nilai transaksi dalam Rupiah.',
+      caraBaca: 'Turnover < 500 juta = Likuiditas rendah, sulit jual/beli. Turnover 500 juta - 2 miliar = Cukup. Turnover > 2 miliar = Likuiditas tinggi, mudah transaksi.',
+      tips: 'Gunakan minimal Rp500 juto turnover untuk memastikan bisa masuk/keluar saham tanpa slippage besar. Untuk saham blue chip, gunakan Rp1 miliar+.',
+    },
   },
   {
     id: 'perf',
@@ -89,6 +119,11 @@ const defaultIndicators: IndicatorDef[] = [
     category: 'momentum',
     enabled: true,
     params: [],
+    info: {
+      fungsi: 'Menunjukkan perubahan harga dalam persentase selama 1 minggu terakhir. Positive = harga naik minggu ini. Negative = harga turun minggu ini.',
+      caraBaca: 'Perf.W > 0 = Harga naik minggu ini (bullish). Perf.W < 0 = Harga turun minggu ini (bearish). Semakin besar persentase, semakin kuat pergerakan.',
+      tips: 'Gunakan sebagai konfirmasi tren. Saham dengan Perf.W positif dan RVOL tinggi menunjukkan minat beli yang kuat. Perf.W negatif bisa jadi peluang beli (buy the dip) jika RSI oversold.',
+    },
   },
 ];
 
@@ -98,11 +133,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
+  const [infoModal, setInfoModal] = useState<IndicatorDef | null>(null);
 
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      // Load max_display from localStorage
       const savedMaxDisplay = localStorage.getItem('max_display');
       if (savedMaxDisplay) {
         setConfig((prev) => ({ ...prev, max_display: parseInt(savedMaxDisplay) || 18 }));
@@ -143,7 +178,6 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus(null);
     try {
-      // Save max_display to localStorage
       localStorage.setItem('max_display', config.max_display.toString());
 
       const res = await fetch('/api/settings', {
@@ -286,14 +320,16 @@ export default function SettingsPage() {
             {indicators.map((ind) => (
               <div
                 key={ind.id}
-                className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
                   ind.enabled
                     ? 'border-cyan-500/50 bg-cyan-500/5'
                     : 'border-gray-800/50 bg-gray-900/30 opacity-60'
                 }`}
-                onClick={() => toggleIndicator(ind.id)}
               >
-                <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                  onClick={() => toggleIndicator(ind.id)}
+                >
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                       ind.enabled ? 'bg-cyan-500 border-cyan-500' : 'border-gray-600'
@@ -306,17 +342,28 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-500">{ind.description}</p>
                   </div>
                 </div>
-                <span
-                  className={`px-2 py-0.5 rounded text-xs ${
-                    ind.category === 'momentum'
-                      ? 'bg-blue-500/10 text-blue-400'
-                      : ind.category === 'volume'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-yellow-500/10 text-yellow-400'
-                  }`}
-                >
-                  {ind.category}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      ind.category === 'momentum'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : ind.category === 'volume'
+                        ? 'bg-emerald-500/10 text-emerald-400'
+                        : 'bg-yellow-500/10 text-yellow-400'
+                    }`}
+                  >
+                    {ind.category}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInfoModal(ind);
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-cyan-400 transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -353,7 +400,7 @@ export default function SettingsPage() {
             </Card>
           ))}
 
-        {/* Score Weights - always shown */}
+        {/* Score Weights */}
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -416,6 +463,60 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Info Modal */}
+      {infoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-gray-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">{infoModal.name}</h3>
+                  <span
+                    className={`inline-block mt-1 px-2 py-0.5 rounded text-xs ${
+                      infoModal.category === 'momentum'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : infoModal.category === 'volume'
+                        ? 'bg-emerald-500/10 text-emerald-400'
+                        : 'bg-yellow-500/10 text-yellow-400'
+                    }`}
+                  >
+                    {infoModal.category}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setInfoModal(null)}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div>
+                <h4 className="text-sm font-semibold text-cyan-400 mb-1">Fungsi</h4>
+                <p className="text-sm text-gray-300 leading-relaxed">{infoModal.info.fungsi}</p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-cyan-400 mb-1">Cara Membaca</h4>
+                <p className="text-sm text-gray-300 leading-relaxed">{infoModal.info.caraBaca}</p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-cyan-400 mb-1">Tips Penggunaan</h4>
+                <p className="text-sm text-gray-300 leading-relaxed">{infoModal.info.tips}</p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+              <button
+                onClick={() => setInfoModal(null)}
+                className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-gray-950 font-medium rounded-lg transition-colors"
+              >
+                Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

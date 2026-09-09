@@ -23,6 +23,25 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
   const [saving, setSaving] = useState(false);
   const isBullish = result.direction === 'bullish';
 
+  // Color helpers
+  const getRsiColor = (rsi: number) => {
+    if (rsi < 30) return 'text-emerald-400'; // Oversold = bullish signal
+    if (rsi > 70) return 'text-red-400'; // Overbought = bearish signal
+    return 'text-yellow-400'; // Neutral
+  };
+
+  const getVolumeColor = (rvol: number) => {
+    if (rvol >= 2) return 'text-emerald-400'; // High volume = strong interest
+    if (rvol >= 1) return 'text-cyan-400'; // Normal volume
+    return 'text-red-400'; // Low volume = weak interest
+  };
+
+  const getPriceChangeColor = (percent: number) => {
+    if (percent > 0) return 'text-emerald-400';
+    if (percent < 0) return 'text-red-400';
+    return 'text-gray-400';
+  };
+
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -107,7 +126,7 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                   <Activity className="w-3 h-3" />
                   Price Change
                 </span>
-                <span className={getDirectionColor(result.direction)}>
+                <span className={getPriceChangeColor(result.price_change_percent)}>
                   {formatPercent(result.price_change_percent)}
                 </span>
               </div>
@@ -116,17 +135,23 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                   <BarChart3 className="w-3 h-3" />
                   Volume
                 </span>
-                <span className="text-white font-medium">{formatNumber(result.volume)}</span>
+                <span className={`font-medium ${getVolumeColor(result.rvol)}`}>
+                  {formatNumber(result.volume)}
+                </span>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RSI</span>
-                <span className="text-white font-medium">{result.rsi.toFixed(1)}</span>
+                <span className={`font-medium ${getRsiColor(result.rsi)}`}>
+                  {result.rsi.toFixed(1)}
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RVOL</span>
-                <span className="text-white font-medium">{result.rvol.toFixed(2)}x</span>
+                <span className={`font-medium ${getVolumeColor(result.rvol)}`}>
+                  {result.rvol.toFixed(2)}x
+                </span>
               </div>
             </div>
           </div>

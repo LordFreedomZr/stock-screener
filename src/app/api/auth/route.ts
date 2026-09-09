@@ -1,31 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password, action } = body;
 
-    let supabaseResponse = NextResponse.next({ request });
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-            supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     if (action === 'login') {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -35,10 +19,27 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      return NextResponse.json(
-        { success: true, user: data.user },
-        { headers: supabaseResponse.headers }
-      );
+      const response = NextResponse.json({ success: true, user: data.user });
+
+      // Set session cookies
+      if (data.session) {
+        response.cookies.set('sb-access-token', data.session.access_token, {
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: data.session.expires_in,
+        });
+        response.cookies.set('sb-refresh-token', data.session.refresh_token, {
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30,
+        });
+      }
+
+      return response;
     }
 
     if (action === 'logout') {

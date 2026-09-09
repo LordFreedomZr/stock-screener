@@ -23,12 +23,17 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // Try to get user from Supabase session
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Also check for our custom access token cookie
+  const accessToken = request.cookies.get('sb-access-token')?.value;
+  const hasValidToken = user || (accessToken && accessToken.length > 0);
+
   if (
-    !user &&
+    !hasValidToken &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/api/auth')
   ) {
@@ -37,7 +42,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  if (hasValidToken && request.nextUrl.pathname.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);

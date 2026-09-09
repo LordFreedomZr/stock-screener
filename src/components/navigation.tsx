@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Star, BarChart3, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Star, BarChart3, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createClient } from '@supabase/supabase-js';
+import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -14,6 +16,19 @@ const navigation = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+      router.push('/login');
+    } catch {
+      window.location.href = '/login';
+    }
+  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-t border-gray-800">
@@ -40,6 +55,14 @@ export function Navigation() {
               </Link>
             );
           })}
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-400 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span>{loggingOut ? '...' : 'Logout'}</span>
+          </button>
         </div>
       </div>
     </nav>

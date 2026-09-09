@@ -43,7 +43,6 @@ export async function POST(request: NextRequest) {
         rvol_threshold: body.rvol_threshold,
         weight_momentum: body.weight_momentum,
         weight_volume: body.weight_volume,
-        max_display: body.max_display ?? 18,
       })
       .select()
       .single();

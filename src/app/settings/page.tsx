@@ -102,12 +102,19 @@ export default function SettingsPage() {
   const fetchConfig = async () => {
     setLoading(true);
     try {
+      // Load max_display from localStorage
+      const savedMaxDisplay = localStorage.getItem('max_display');
+      if (savedMaxDisplay) {
+        setConfig((prev) => ({ ...prev, max_display: parseInt(savedMaxDisplay) || 18 }));
+      }
+
       const res = await fetch('/api/settings');
       const json = await res.json();
 
       if (json.success && json.data) {
         const data = json.data;
-        setConfig({
+        setConfig((prev) => ({
+          ...prev,
           id: data.id || 'default',
           version: data.version || '1.0.0',
           rsi_oversold: data.rsi_oversold ?? defaultConfig.rsi_oversold,
@@ -118,9 +125,8 @@ export default function SettingsPage() {
           rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
           weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
           weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
-          max_display: data.max_display ?? defaultConfig.max_display,
           created_at: data.created_at || new Date().toISOString(),
-        });
+        }));
       }
     } catch (error) {
       console.error('Error fetching config:', error);
@@ -137,6 +143,9 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus(null);
     try {
+      // Save max_display to localStorage
+      localStorage.setItem('max_display', config.max_display.toString());
+
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +159,6 @@ export default function SettingsPage() {
           rvol_threshold: config.rvol_threshold,
           weight_momentum: config.weight_momentum,
           weight_volume: config.weight_volume,
-          max_display: config.max_display,
         }),
       });
       const json = await res.json();

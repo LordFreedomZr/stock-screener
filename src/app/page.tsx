@@ -67,6 +67,12 @@ export default function DashboardPage() {
         }
       })
       .catch(() => {});
+
+    // Also load from localStorage (primary source for max_display)
+    const saved = localStorage.getItem('max_display');
+    if (saved) {
+      setMaxDisplay(parseInt(saved) || 18);
+    }
   }, []);
 
   const filteredResults = useMemo(() => {

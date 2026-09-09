@@ -199,7 +199,8 @@ export async function addWatchlistItem(
 
   if (existingStopped) {
     // Reactivate stopped entry
-    const { data: updated, error: updateError } = await supabase
+    const client = supabaseAdmin || supabase;
+    const { data: updated, error: updateError } = await client!
       .from('watchlist_items')
       .update({ status: 'active', stopped_at: null, marked_at: nowIso })
       .eq('id', existingStopped.id)
@@ -212,7 +213,8 @@ export async function addWatchlistItem(
     targetItem = updated;
   } else {
     // Insert new entry
-    const { data: inserted, error: insertError } = await supabase
+    const client = supabaseAdmin || supabase;
+    const { data: inserted, error: insertError } = await client!
       .from('watchlist_items')
       .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId })
       .select()
@@ -240,7 +242,8 @@ export async function addWatchlistItem(
     notes: `Entry awal ditambahkan pada harga Rp ${price.toLocaleString('id-ID')}`,
   };
 
-  const { error: evalInsertError } = await supabase.from('watchlist_evaluations').insert({
+  const evalClient = supabaseAdmin || supabase;
+  const { error: evalInsertError } = await evalClient!.from('watchlist_evaluations').insert({
     id: initialEval.id,
     watchlist_item_id: targetItem.id,
     ticker,
@@ -274,7 +277,8 @@ export async function stopWatchlistItem(ticker: string, userId?: string | null):
   }
 
   const nowIso = new Date().toISOString();
-  let query = supabase
+  const client = supabaseAdmin || supabase;
+  let query = client!
     .from('watchlist_items')
     .update({ status: 'stopped', stopped_at: nowIso })
     .eq('ticker', ticker)
@@ -364,7 +368,8 @@ export async function evaluateWatchlist(filterTicker?: string, userId?: string |
       updatedEvals.push(evaluationRecord);
 
       if (supabase) {
-        const { error: insertErr } = await supabase.from('watchlist_evaluations').insert({
+        const evalWriteClient = supabaseAdmin || supabase;
+        const { error: insertErr } = await evalWriteClient!.from('watchlist_evaluations').insert({
           id: evaluationRecord.id,
           watchlist_item_id: item.id,
           ticker: item.ticker,

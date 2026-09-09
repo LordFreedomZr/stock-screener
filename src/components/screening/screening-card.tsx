@@ -100,10 +100,10 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 flex items-center gap-1">
+                <span className="text-gray-500 flex items-center gap-1.5">
                   <Activity className="w-3 h-3" />
                   Price Change
                 </span>
@@ -112,34 +112,34 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 flex items-center gap-1">
+                <span className="text-gray-500 flex items-center gap-1.5">
                   <BarChart3 className="w-3 h-3" />
                   Volume
                 </span>
-                <span className="text-white">{formatNumber(result.volume)}</span>
+                <span className="text-white font-medium">{formatNumber(result.volume)}</span>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RSI</span>
-                <span className="text-white">{result.rsi.toFixed(1)}</span>
+                <span className="text-white font-medium">{result.rsi.toFixed(1)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">RVOL</span>
-                <span className="text-white">{result.rvol.toFixed(2)}x</span>
+                <span className="text-white font-medium">{result.rvol.toFixed(2)}x</span>
               </div>
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-gray-800">
+          <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Max Profit</span>
-              <span className="text-emerald-400">
+              <span className="text-emerald-400 font-medium">
                 +{formatPercent(result.max_profit_percent)} ({formatCurrency(result.max_profit_nominal)})
               </span>
             </div>
-            <div className="flex items-center justify-between text-sm mt-1">
+            <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Max Loss</span>
-              <span className="text-red-400">
+              <span className="text-red-400 font-medium">
                 {formatPercent(result.max_loss_percent)} ({formatCurrency(result.max_loss_nominal)})
               </span>
             </div>

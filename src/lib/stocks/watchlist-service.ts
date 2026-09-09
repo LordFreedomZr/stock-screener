@@ -17,14 +17,13 @@ export const isSupabaseConfigured = () =>
   !supabaseUrl.includes('placeholder') &&
   !supabaseAnonKey.includes('placeholder');
 
-const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
-
-// Admin client with service role key (bypasses RLS) - only for stock registration
-const supabaseAdmin =
+// Always use admin client for all DB operations (bypasses RLS)
+// User isolation is handled by explicit user_id filtering in queries
+const supabase =
   isSupabaseConfigured() && supabaseServiceKey
     ? createClient(supabaseUrl, supabaseServiceKey)
+    : isSupabaseConfigured()
+    ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
 /**
@@ -45,9 +44,7 @@ async function ensureStockExists(ticker: string): Promise<void> {
   const name = fallback?.name || ticker;
   const sector = fallback?.sector || 'Unknown';
 
-  // Use admin client to bypass RLS for stock registration
-  const client = supabaseAdmin || supabase;
-  const { error } = await client
+  const { error } = await supabase
     .from('stocks')
     .insert({ ticker, name, sector, is_active: true });
 
@@ -104,7 +101,6 @@ export async function getWatchlistItems(userId?: string | null): Promise<Watchli
 
   if (evalsError) {
     console.error('Error fetching evaluations:', evalsError);
-    // Return items without evaluations rather than failing completely
     return items.map((item) => ({ ...item, latest_evaluation: null })) as unknown as WatchlistItem[];
   }
 
@@ -199,8 +195,7 @@ export async function addWatchlistItem(
 
   if (existingStopped) {
     // Reactivate stopped entry
-    const client = supabaseAdmin || supabase;
-    const { data: updated, error: updateError } = await client!
+    const { data: updated, error: updateError } = await supabase
       .from('watchlist_items')
       .update({ status: 'active', stopped_at: null, marked_at: nowIso })
       .eq('id', existingStopped.id)
@@ -213,8 +208,7 @@ export async function addWatchlistItem(
     targetItem = updated;
   } else {
     // Insert new entry
-    const client = supabaseAdmin || supabase;
-    const { data: inserted, error: insertError } = await client!
+    const { data: inserted, error: insertError } = await supabase
       .from('watchlist_items')
       .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId })
       .select()
@@ -242,8 +236,7 @@ export async function addWatchlistItem(
     notes: `Entry awal ditambahkan pada harga Rp ${price.toLocaleString('id-ID')}`,
   };
 
-  const evalClient = supabaseAdmin || supabase;
-  const { error: evalInsertError } = await evalClient!.from('watchlist_evaluations').insert({
+  const { error: evalInsertError } = await supabase.from('watchlist_evaluations').insert({
     id: initialEval.id,
     watchlist_item_id: targetItem.id,
     ticker,
@@ -259,7 +252,6 @@ export async function addWatchlistItem(
 
   if (evalInsertError) {
     console.error('Failed to insert initial evaluation:', evalInsertError);
-    // Item was added but evaluation failed - still return success
   }
 
   return {
@@ -277,8 +269,7 @@ export async function stopWatchlistItem(ticker: string, userId?: string | null):
   }
 
   const nowIso = new Date().toISOString();
-  const client = supabaseAdmin || supabase;
-  let query = client!
+  let query = supabase
     .from('watchlist_items')
     .update({ status: 'stopped', stopped_at: nowIso })
     .eq('ticker', ticker)
@@ -368,8 +359,7 @@ export async function evaluateWatchlist(filterTicker?: string, userId?: string |
       updatedEvals.push(evaluationRecord);
 
       if (supabase) {
-        const evalWriteClient = supabaseAdmin || supabase;
-        const { error: insertErr } = await evalWriteClient!.from('watchlist_evaluations').insert({
+        const { error: insertErr } = await supabase.from('watchlist_evaluations').insert({
           id: evaluationRecord.id,
           watchlist_item_id: item.id,
           ticker: item.ticker,
@@ -391,8 +381,8 @@ export async function evaluateWatchlist(filterTicker?: string, userId?: string |
     }
   }
 
-  // Re-fetch all items with fresh evaluations
-  const refreshedItems = await getWatchlistItems();
+  // Re-fetch all items with fresh evaluations (pass userId for filtering)
+  const refreshedItems = await getWatchlistItems(userId);
   const total = refreshedItems.length;
   const benar = refreshedItems.filter((i) => i.latest_evaluation?.status === 'benar').length;
   const floating = refreshedItems.filter((i) => i.latest_evaluation?.status === 'floating').length;
@@ -413,23 +403,20 @@ export async function evaluateWatchlist(filterTicker?: string, userId?: string |
         updated_at: nowIso,
       };
 
-      // Use admin client to bypass RLS for accuracy_stats
-      const adminClient = supabaseAdmin || supabase;
-
       // Check if row exists first (no UNIQUE constraint on indicator)
-      const { data: existing } = await adminClient
+      const { data: existing } = await supabase
         .from('accuracy_stats')
         .select('id')
         .eq('indicator', 'Overall System')
         .maybeSingle();
 
       if (existing) {
-        await adminClient
+        await supabase
           .from('accuracy_stats')
           .update(statsData)
           .eq('id', existing.id);
       } else {
-        await adminClient
+        await supabase
           .from('accuracy_stats')
           .insert({ id: crypto.randomUUID(), ...statsData });
       }

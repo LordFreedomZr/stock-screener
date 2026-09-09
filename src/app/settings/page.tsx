@@ -18,6 +18,7 @@ const defaultConfig: ThresholdConfig = {
   rvol_threshold: 2.0,
   weight_momentum: 50,
   weight_volume: 50,
+  max_display: 18,
   created_at: new Date().toISOString(),
 };
 
@@ -117,6 +118,7 @@ export default function SettingsPage() {
           rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
           weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
           weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
+          max_display: data.max_display ?? defaultConfig.max_display,
           created_at: data.created_at || new Date().toISOString(),
         });
       }
@@ -148,6 +150,7 @@ export default function SettingsPage() {
           rvol_threshold: config.rvol_threshold,
           weight_momentum: config.weight_momentum,
           weight_volume: config.weight_volume,
+          max_display: config.max_display,
         }),
       });
       const json = await res.json();
@@ -378,6 +381,29 @@ export default function SettingsPage() {
                 onChange={(e) => updateConfig('weight_volume', parseInt(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Display Settings */}
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+              Tampilan Dashboard
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm text-gray-400">Jumlah Saham Ditampilkan</label>
+              <Input
+                type="number"
+                min="1"
+                max="150"
+                value={config.max_display}
+                onChange={(e) => updateConfig('max_display', parseInt(e.target.value) || 18)}
+              />
+              <p className="text-xs text-gray-500">Default: 18 saham (diurutkan dari skor tertinggi)</p>
             </div>
           </CardContent>
         </Card>

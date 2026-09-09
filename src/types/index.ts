@@ -91,6 +91,7 @@ export interface ThresholdConfig {
   rvol_threshold: number;
   weight_momentum: number;
   weight_volume: number;
+  max_display: number;
   created_at: string;
 }
 

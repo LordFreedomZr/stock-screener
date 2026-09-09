@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [spikeTab, setSpikeTab] = useState<SpikeTab>('yesterday');
   const [spikeExpanded, setSpikeExpanded] = useState(false);
+  const [maxDisplay, setMaxDisplay] = useState(18);
 
   const fetchScreeningResults = useCallback(async () => {
     setFetching(true);
@@ -57,22 +58,41 @@ export default function DashboardPage() {
     fetchScreeningResults();
   }, [fetchScreeningResults]);
 
-  const filteredResults = useMemo(() => results.filter((result) => {
-    if (filters.searchQuery) {
-      const query = filters.searchQuery.toLowerCase();
-      const matchesTicker = result.ticker.toLowerCase().includes(query);
-      const matchesName = result.name?.toLowerCase().includes(query);
-      if (!matchesTicker && !matchesName) return false;
-    }
-    if (filters.priceMin !== null && result.price < filters.priceMin) return false;
-    if (filters.priceMax !== null && result.price > filters.priceMax) return false;
-    if (filters.volumeMin !== null && result.volume < filters.volumeMin) return false;
-    if (filters.maxLossPercent !== null && result.max_loss_percent > filters.maxLossPercent) return false;
-    if (filters.maxLossNominal !== null && result.max_loss_nominal > filters.maxLossNominal) return false;
-    if (filters.maxProfitPercent !== null && result.max_profit_percent < filters.maxProfitPercent) return false;
-    if (filters.maxProfitNominal !== null && result.max_profit_nominal < filters.maxProfitNominal) return false;
-    return true;
-  }), [results, filters]);
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data?.max_display) {
+          setMaxDisplay(json.data.max_display);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const filteredResults = useMemo(() => {
+    const filtered = results.filter((result) => {
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        const matchesTicker = result.ticker.toLowerCase().includes(query);
+        const matchesName = result.name?.toLowerCase().includes(query);
+        if (!matchesTicker && !matchesName) return false;
+      }
+      if (filters.priceMin !== null && result.price < filters.priceMin) return false;
+      if (filters.priceMax !== null && result.price > filters.priceMax) return false;
+      if (filters.volumeMin !== null && result.volume < filters.volumeMin) return false;
+      if (filters.maxLossPercent !== null && result.max_loss_percent > filters.maxLossPercent) return false;
+      if (filters.maxLossNominal !== null && result.max_loss_nominal > filters.maxLossNominal) return false;
+      if (filters.maxProfitPercent !== null && result.max_profit_percent < filters.maxProfitPercent) return false;
+      if (filters.maxProfitNominal !== null && result.max_profit_nominal < filters.maxProfitNominal) return false;
+      return true;
+    });
+
+    // Sort by score (highest first)
+    filtered.sort((a, b) => b.score - a.score);
+
+    // Apply max display limit
+    return filtered.slice(0, maxDisplay);
+  }, [results, filters, maxDisplay]);
 
   const volumeRanking = useMemo(() => {
     const withSpikes = results

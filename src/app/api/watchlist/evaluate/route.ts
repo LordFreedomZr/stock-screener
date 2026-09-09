@@ -1,14 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { evaluateWatchlist } from '@/lib/stocks/watchlist-service';
+import { getCurrentUser } from '@/lib/supabase/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const ticker = searchParams.get('ticker') || undefined;
+    const userId = await getCurrentUser(request);
 
-    const result = await evaluateWatchlist(ticker);
+    const result = await evaluateWatchlist(ticker, userId);
 
     return NextResponse.json({
       success: true,
@@ -25,8 +27,9 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUser(request);
     let ticker: string | undefined = undefined;
     try {
       const body = await request.json();
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
       // Body is optional
     }
 
-    const result = await evaluateWatchlist(ticker);
+    const result = await evaluateWatchlist(ticker, userId);
 
     return NextResponse.json({
       success: true,

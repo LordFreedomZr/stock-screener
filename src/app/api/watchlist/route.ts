@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   getWatchlistItems,
   addWatchlistItem,
   stopWatchlistItem,
 } from '@/lib/stocks/watchlist-service';
+import { getCurrentUser } from '@/lib/supabase/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +21,10 @@ function validateAction(action: unknown): action is 'add' | 'stop' {
   return action === 'add' || action === 'stop';
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const data = await getWatchlistItems();
+    const userId = await getCurrentUser(request);
+    const data = await getWatchlistItems(userId);
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to fetch watchlist';
@@ -31,8 +33,9 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUser(request);
     const body = await request.json();
     const { ticker, action, price, score, direction } = body;
 
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
         price: typeof price === 'number' && price > 0 ? price : undefined,
         score: typeof score === 'number' ? score : undefined,
         direction: direction === 'bullish' || direction === 'bearish' ? direction : undefined,
+        userId,
       });
 
       return NextResponse.json({
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
         message: `${cleanTicker} berhasil ditambahkan ke watchlist.`,
       });
     } else {
-      const stopped = await stopWatchlistItem(cleanTicker);
+      const stopped = await stopWatchlistItem(cleanTicker, userId);
       if (!stopped) {
         return NextResponse.json(
           { success: false, error: 'Watchlist item not found or already stopped' },
@@ -83,7 +87,6 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Failed to update watchlist';
     console.error('Error updating watchlist:', error);
 
-    // Determine appropriate status code
     let status = 500;
     if (message.includes('already active')) status = 409;
     else if (message.includes('not configured')) status = 503;

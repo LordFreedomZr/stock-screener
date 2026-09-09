@@ -69,16 +69,23 @@ export function determineEvaluationStatus(
 /**
  * Get all watchlist items with their latest evaluation.
  */
-export async function getWatchlistItems(): Promise<WatchlistItem[]> {
+export async function getWatchlistItems(userId?: string | null): Promise<WatchlistItem[]> {
   if (!supabase) {
     console.error('Supabase not configured - cannot fetch watchlist');
     return [];
   }
 
-  const { data: items, error: itemsError } = await supabase
+  let query = supabase
     .from('watchlist_items')
     .select('*')
     .order('marked_at', { ascending: false });
+
+  // Filter by user_id if provided
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data: items, error: itemsError } = await query;
 
   if (itemsError) {
     console.error('Error fetching watchlist items:', itemsError);
@@ -121,11 +128,13 @@ export async function getWatchlistItems(): Promise<WatchlistItem[]> {
  */
 export async function addWatchlistItem(
   ticker: string,
-  options?: { price?: number; score?: number; direction?: 'bullish' | 'bearish' }
+  options?: { price?: number; score?: number; direction?: 'bullish' | 'bearish'; userId?: string | null }
 ): Promise<{ item: WatchlistItem; evaluation: WatchlistEvaluation }> {
   if (!supabase) {
     throw new Error('Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
   }
+
+  const userId = options?.userId;
 
   // Ensure ticker exists in stocks table (required for FK constraint)
   await ensureStockExists(ticker);
@@ -152,13 +161,18 @@ export async function addWatchlistItem(
 
   const nowIso = new Date().toISOString();
 
-  // Check if already active
-  const { data: existingActive, error: checkError } = await supabase
+  // Check if already active (for this user)
+  let activeQuery = supabase
     .from('watchlist_items')
     .select('id')
     .eq('ticker', ticker)
-    .eq('status', 'active')
-    .maybeSingle();
+    .eq('status', 'active');
+
+  if (userId) {
+    activeQuery = activeQuery.eq('user_id', userId);
+  }
+
+  const { data: existingActive, error: checkError } = await activeQuery.maybeSingle();
 
   if (checkError) {
     throw new Error(`Failed to check watchlist: ${checkError.message}`);
@@ -168,13 +182,18 @@ export async function addWatchlistItem(
     throw new Error('Stock already active in watchlist');
   }
 
-  // Check if there's a stopped entry to reactivate
-  const { data: existingStopped } = await supabase
+  // Check if there's a stopped entry to reactivate (for this user)
+  let stoppedQuery = supabase
     .from('watchlist_items')
     .select('id')
     .eq('ticker', ticker)
-    .eq('status', 'stopped')
-    .maybeSingle();
+    .eq('status', 'stopped');
+
+  if (userId) {
+    stoppedQuery = stoppedQuery.eq('user_id', userId);
+  }
+
+  const { data: existingStopped } = await stoppedQuery.maybeSingle();
 
   let targetItem: Record<string, unknown>;
 
@@ -195,7 +214,7 @@ export async function addWatchlistItem(
     // Insert new entry
     const { data: inserted, error: insertError } = await supabase
       .from('watchlist_items')
-      .insert({ ticker, status: 'active', marked_at: nowIso })
+      .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId })
       .select()
       .single();
 
@@ -249,17 +268,23 @@ export async function addWatchlistItem(
 /**
  * Stop watching an item.
  */
-export async function stopWatchlistItem(ticker: string): Promise<boolean> {
+export async function stopWatchlistItem(ticker: string, userId?: string | null): Promise<boolean> {
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
 
   const nowIso = new Date().toISOString();
-  const { error } = await supabase
+  let query = supabase
     .from('watchlist_items')
     .update({ status: 'stopped', stopped_at: nowIso })
     .eq('ticker', ticker)
     .eq('status', 'active');
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     throw new Error(`Failed to stop watchlist item: ${error.message}`);
@@ -271,11 +296,11 @@ export async function stopWatchlistItem(ticker: string): Promise<boolean> {
 /**
  * Evaluates active watchlist items against real-time live prices.
  */
-export async function evaluateWatchlist(filterTicker?: string): Promise<{
+export async function evaluateWatchlist(filterTicker?: string, userId?: string | null): Promise<{
   items: WatchlistItem[];
   summary: { total: number; benar: number; floating: number; meleset: number; hitRate: number };
 }> {
-  const currentItems = await getWatchlistItems();
+  const currentItems = await getWatchlistItems(userId);
   const activeItems = currentItems.filter(
     (i) => i.status === 'active' && (!filterTicker || i.ticker === filterTicker)
   );

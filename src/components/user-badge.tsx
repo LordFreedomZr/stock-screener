@@ -7,14 +7,35 @@ export function UserBadge() {
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && json.data?.email) {
-          setEmail(json.data.email);
-        }
-      })
-      .catch(() => {});
+    // Extract email from JWT in cookie
+    const cookies = document.cookie.split(';');
+    const accessTokenCookie = cookies.find((c) => c.trim().startsWith('sb-access-token='));
+    if (accessTokenCookie) {
+      try {
+        const token = accessTokenCookie.split('=')[1];
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        // JWT sub is user ID, but we need email
+        // Fetch from /api/auth/me using the cookie
+        fetch('/api/auth/me')
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success && json.data?.email) {
+              setEmail(json.data.email);
+            }
+          })
+          .catch(() => {});
+      } catch {
+        // Fallback: try API
+        fetch('/api/auth/me')
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success && json.data?.email) {
+              setEmail(json.data.email);
+            }
+          })
+          .catch(() => {});
+      }
+    }
   }, []);
 
   if (!email) return null;

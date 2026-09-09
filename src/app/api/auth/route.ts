@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
 
       const response = NextResponse.json({ success: true, user: data.user });
 
-      // Set session cookies
       if (data.session) {
         response.cookies.set('sb-access-token', data.session.access_token, {
           path: '/',
@@ -46,8 +45,36 @@ export async function POST(request: NextRequest) {
       await supabase.auth.signOut();
 
       const response = NextResponse.json({ success: true });
-      response.cookies.delete('sb-access-token');
-      response.cookies.delete('sb-refresh-token');
+
+      // Clear all auth-related cookies
+      const cookiesToClear = [
+        'sb-access-token',
+        'sb-refresh-token',
+      ];
+
+      for (const name of cookiesToClear) {
+        response.cookies.set(name, '', {
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: 0,
+        });
+      }
+
+      // Also clear Supabase internal cookies
+      const { cookies } = request;
+      for (const cookie of cookies.getAll()) {
+        if (cookie.name.startsWith('sb-') || cookie.name.startsWith('supabase')) {
+          response.cookies.set(cookie.name, '', {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            maxAge: 0,
+          });
+        }
+      }
 
       return response;
     }

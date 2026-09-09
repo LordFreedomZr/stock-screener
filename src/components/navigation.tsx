@@ -23,8 +23,12 @@ export function Navigation() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await fetch('/api/auth', { method: 'DELETE' });
-      router.push('/login');
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      });
+      window.location.href = '/login';
     } catch {
       window.location.href = '/login';
     }

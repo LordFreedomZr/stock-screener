@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { StockChart } from '@/components/charts/stock-chart';
+import { RSIChart } from '@/components/charts/rsi-chart';
+import { MACDChart } from '@/components/charts/macd-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +13,7 @@ import { ScreeningResult, PriceSnapshot } from '@/types';
 import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor } from '@/lib/utils';
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
-  Zap, Target, Shield, Clock, RefreshCw 
+  Zap, Target, Shield, Clock, RefreshCw, LineChart 
 } from 'lucide-react';
 
 export default function StockDetailPage() {
@@ -157,6 +159,58 @@ export default function StockDetailPage() {
 
   const isBullish = result.direction === 'bullish';
 
+  // Calculate RSI from price data
+  const rsiData = useMemo(() => {
+    if (!priceData.length) return [];
+    const closes = priceData.map(d => d.close);
+    const period = 14;
+    const rsiResults: { timestamp: string; rsi: number }[] = [];
+
+    for (let i = period; i < closes.length; i++) {
+      let gains = 0;
+      let losses = 0;
+      for (let j = i - period + 1; j <= i; j++) {
+        const change = closes[j] - closes[j - 1];
+        if (change > 0) gains += change;
+        else losses -= change;
+      }
+      const avgGain = gains / period;
+      const avgLoss = losses / period;
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      const rsi = 100 - (100 / (1 + rs));
+      rsiResults.push({ timestamp: priceData[i].timestamp, rsi });
+    }
+    return rsiResults;
+  }, [priceData]);
+
+  // Calculate MACD from price data
+  const macdData = useMemo(() => {
+    if (!priceData.length) return [];
+    const closes = priceData.map(d => d.close);
+    
+    const calcEMA = (data: number[], period: number) => {
+      const k = 2 / (period + 1);
+      const ema = [data[0]];
+      for (let i = 1; i < data.length; i++) {
+        ema.push(data[i] * k + ema[i - 1] * (1 - k));
+      }
+      return ema;
+    };
+
+    const ema12 = calcEMA(closes, 12);
+    const ema26 = calcEMA(closes, 26);
+    const macdLine = ema12.map((v, i) => v - ema26[i]);
+    const signalLine = calcEMA(macdLine, 9);
+    const histogram = macdLine.map((v, i) => v - signalLine[i]);
+
+    return priceData.map((d, i) => ({
+      timestamp: d.timestamp,
+      macd: macdLine[i],
+      macd_signal: signalLine[i],
+      macd_histogram: histogram[i],
+    }));
+  }, [priceData]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -254,9 +308,48 @@ export default function StockDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <StockChart data={priceData} height={350} />
+          <StockChart data={priceData} height={350} indicators={{ showVolume: true }} />
         </CardContent>
       </Card>
+
+      {/* Indicator Charts */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-400" />
+              RSI (14)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {rsiData.length > 0 ? (
+              <RSIChart data={rsiData} height={180} />
+            ) : (
+              <div className="h-[180px] flex items-center justify-center text-gray-500 text-sm">
+                Loading RSI data...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <LineChart className="w-4 h-4 text-blue-400" />
+              MACD (12/26/9)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {macdData.length > 0 ? (
+              <MACDChart data={macdData} height={180} />
+            ) : (
+              <div className="h-[180px] flex items-center justify-center text-gray-500 text-sm">
+                Loading MACD data...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">

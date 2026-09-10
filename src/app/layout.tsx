@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/navigation";
 import { UserBadge } from "@/components/user-badge";
+import { SwipeNavigation } from "@/components/swipe-navigation";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -45,11 +46,13 @@ export default function RootLayout({
             </div>
           </header>
           <Navigation />
-          <main className="pb-20 pt-4">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              {children}
-            </div>
-          </main>
+          <SwipeNavigation>
+            <main className="pb-20 pt-4">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                {children}
+              </div>
+            </main>
+          </SwipeNavigation>
         </div>
       </body>
     </html>

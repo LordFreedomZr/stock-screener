@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { ScreeningCard } from '@/components/screening/screening-card';
 import { FilterPanel } from '@/components/screening/filter-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -375,7 +376,11 @@ function SpikeContent({
             }
 
             return (
-              <div key={item.ticker} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/30 transition-colors">
+              <Link
+                key={item.ticker}
+                href={`/stock/${item.ticker}`}
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/30 transition-colors"
+              >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                   idx < 3 ? 'bg-orange-500/20' : 'bg-gray-800'
                 }`}>
@@ -414,7 +419,7 @@ function SpikeContent({
                     {isPriceUp ? '+' : ''}{item.price_change_percent.toFixed(2)}% price
                   </p>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

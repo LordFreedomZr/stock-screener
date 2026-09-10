@@ -261,7 +261,7 @@ export async function fetchSingleStock(
 ): Promise<ScreeningResult | null> {
   const payload = {
     filter: [
-      { left: 'name', operation: 'equal', right: ticker.toUpperCase() },
+      { left: 'name', operation: 'equal', right: `IDX:${ticker.toUpperCase()}` },
       { left: 'type', operation: 'equal', right: 'stock' },
     ],
     columns: SCAN_COLUMNS,

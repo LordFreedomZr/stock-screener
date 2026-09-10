@@ -29,6 +29,58 @@ export default function StockDetailPage() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Calculate RSI from price data (must be before any conditional returns)
+  const rsiData = useMemo(() => {
+    if (!priceData.length) return [];
+    const closes = priceData.map(d => d.close);
+    const period = 14;
+    const rsiResults: { timestamp: string; rsi: number }[] = [];
+
+    for (let i = period; i < closes.length; i++) {
+      let gains = 0;
+      let losses = 0;
+      for (let j = i - period + 1; j <= i; j++) {
+        const change = closes[j] - closes[j - 1];
+        if (change > 0) gains += change;
+        else losses -= change;
+      }
+      const avgGain = gains / period;
+      const avgLoss = losses / period;
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      const rsi = 100 - (100 / (1 + rs));
+      rsiResults.push({ timestamp: priceData[i].timestamp, rsi });
+    }
+    return rsiResults;
+  }, [priceData]);
+
+  // Calculate MACD from price data (must be before any conditional returns)
+  const macdData = useMemo(() => {
+    if (!priceData.length) return [];
+    const closes = priceData.map(d => d.close);
+    
+    const calcEMA = (data: number[], period: number) => {
+      const k = 2 / (period + 1);
+      const ema = [data[0]];
+      for (let i = 1; i < data.length; i++) {
+        ema.push(data[i] * k + ema[i - 1] * (1 - k));
+      }
+      return ema;
+    };
+
+    const ema12 = calcEMA(closes, 12);
+    const ema26 = calcEMA(closes, 26);
+    const macdLine = ema12.map((v, i) => v - ema26[i]);
+    const signalLine = calcEMA(macdLine, 9);
+    const histogram = macdLine.map((v, i) => v - signalLine[i]);
+
+    return priceData.map((d, i) => ({
+      timestamp: d.timestamp,
+      macd: macdLine[i],
+      macd_signal: signalLine[i],
+      macd_histogram: histogram[i],
+    }));
+  }, [priceData]);
+
   const fetchData = useCallback(async () => {
     // Cancel any previous request
     if (abortControllerRef.current) {
@@ -158,58 +210,6 @@ export default function StockDetailPage() {
   }
 
   const isBullish = result.direction === 'bullish';
-
-  // Calculate RSI from price data
-  const rsiData = useMemo(() => {
-    if (!priceData.length) return [];
-    const closes = priceData.map(d => d.close);
-    const period = 14;
-    const rsiResults: { timestamp: string; rsi: number }[] = [];
-
-    for (let i = period; i < closes.length; i++) {
-      let gains = 0;
-      let losses = 0;
-      for (let j = i - period + 1; j <= i; j++) {
-        const change = closes[j] - closes[j - 1];
-        if (change > 0) gains += change;
-        else losses -= change;
-      }
-      const avgGain = gains / period;
-      const avgLoss = losses / period;
-      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-      const rsi = 100 - (100 / (1 + rs));
-      rsiResults.push({ timestamp: priceData[i].timestamp, rsi });
-    }
-    return rsiResults;
-  }, [priceData]);
-
-  // Calculate MACD from price data
-  const macdData = useMemo(() => {
-    if (!priceData.length) return [];
-    const closes = priceData.map(d => d.close);
-    
-    const calcEMA = (data: number[], period: number) => {
-      const k = 2 / (period + 1);
-      const ema = [data[0]];
-      for (let i = 1; i < data.length; i++) {
-        ema.push(data[i] * k + ema[i - 1] * (1 - k));
-      }
-      return ema;
-    };
-
-    const ema12 = calcEMA(closes, 12);
-    const ema26 = calcEMA(closes, 26);
-    const macdLine = ema12.map((v, i) => v - ema26[i]);
-    const signalLine = calcEMA(macdLine, 9);
-    const histogram = macdLine.map((v, i) => v - signalLine[i]);
-
-    return priceData.map((d, i) => ({
-      timestamp: d.timestamp,
-      macd: macdLine[i],
-      macd_signal: signalLine[i],
-      macd_histogram: histogram[i],
-    }));
-  }, [priceData]);
 
   return (
     <div className="space-y-6">

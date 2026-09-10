@@ -90,8 +90,17 @@ export default function StockDetailPage() {
 
     setFetching(true);
     try {
+      // Get enabled indicators from localStorage
+      const savedEnabled = localStorage.getItem('enabled_indicators');
+      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr'];
+      
+      const params = new URLSearchParams();
+      if (enabledIndicators.length > 0) {
+        params.set('enabled', enabledIndicators.join(','));
+      }
+
       // Fetch screening data for this ticker
-      const screeningResponse = await fetch('/api/screening', {
+      const screeningResponse = await fetch(`/api/screening?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
       });
       const screeningData = await screeningResponse.json();

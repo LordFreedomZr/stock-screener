@@ -92,6 +92,7 @@ export interface ThresholdConfig {
   weight_momentum: number;
   weight_volume: number;
   max_display: number;
+  enabled_indicators: string[];
   created_at: string;
 }
 

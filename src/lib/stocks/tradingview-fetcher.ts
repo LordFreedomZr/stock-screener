@@ -68,53 +68,70 @@ function calculateScore(
   roc: number,
   rvol: number,
   atrPercent: number,
-  config: ScoreConfig
+  config: ScoreConfig,
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
 ): { score: number; direction: 'bullish' | 'bearish' } {
   const midRsi = (config.rsi_overbought + config.rsi_oversold) / 2;
 
-  // RSI signal (0-1)
+  // RSI signal (0-1) - only if enabled
   let rsiScore = 0;
-  if (rsi > midRsi && rsi < config.rsi_overbought) rsiScore = 1;
-  else if (rsi >= config.rsi_oversold && rsi <= midRsi) rsiScore = 0.5;
-  else if (rsi < config.rsi_oversold) rsiScore = 0.7;
-  else rsiScore = 0.1;
+  if (enabledIndicators.includes('rsi')) {
+    if (rsi > midRsi && rsi < config.rsi_overbought) rsiScore = 1;
+    else if (rsi >= config.rsi_oversold && rsi <= midRsi) rsiScore = 0.5;
+    else if (rsi < config.rsi_oversold) rsiScore = 0.7;
+    else rsiScore = 0.1;
+  }
 
-  // MACD signal (0-1)
-  const macdBullish = macd > macdSignal;
-  const histStrength = Math.abs(macd - macdSignal);
-  const macdScore = macdBullish
-    ? Math.min(1, 0.5 + histStrength * 10)
-    : Math.max(0, 0.5 - histStrength * 10);
+  // MACD signal (0-1) - only if enabled
+  let macdScore = 0;
+  if (enabledIndicators.includes('macd')) {
+    const macdBullish = macd > macdSignal;
+    const histStrength = Math.abs(macd - macdSignal);
+    macdScore = macdBullish
+      ? Math.min(1, 0.5 + histStrength * 10)
+      : Math.max(0, 0.5 - histStrength * 10);
+  }
 
-  // ROC signal (0-1)
+  // ROC signal (0-1) - only if enabled
   let rocScore = 0;
-  if (roc > 3) rocScore = 1;
-  else if (roc > 0) rocScore = 0.7;
-  else if (roc > -3) rocScore = 0.3;
+  if (enabledIndicators.includes('roc')) {
+    if (roc > 3) rocScore = 1;
+    else if (roc > 0) rocScore = 0.7;
+    else if (roc > -3) rocScore = 0.3;
+  }
 
-  // RVOL signal (0-1)
-  const t = config.rvol_threshold;
+  // RVOL signal (0-1) - only if enabled
   let rvolScore = 0;
-  if (rvol >= t) rvolScore = 1;
-  else if (rvol >= t * 0.75) rvolScore = 0.8;
-  else if (rvol >= 1) rvolScore = 0.5;
-  else rvolScore = 0.2;
+  if (enabledIndicators.includes('rvol')) {
+    const t = config.rvol_threshold;
+    if (rvol >= t) rvolScore = 1;
+    else if (rvol >= t * 0.75) rvolScore = 0.8;
+    else if (rvol >= 1) rvolScore = 0.5;
+    else rvolScore = 0.2;
+  }
 
-  // ATR signal (0-1)
+  // ATR signal (0-1) - only if enabled
   let atrScore = 0;
-  if (atrPercent >= config.atr_min_percent && atrPercent <= config.atr_max_percent) atrScore = 1;
-  else if (atrPercent >= config.atr_min_percent * 0.7 && atrPercent <= config.atr_max_percent * 1.3) atrScore = 0.6;
-  else atrScore = 0.2;
+  if (enabledIndicators.includes('atr')) {
+    if (atrPercent >= config.atr_min_percent && atrPercent <= config.atr_max_percent) atrScore = 1;
+    else if (atrPercent >= config.atr_min_percent * 0.7 && atrPercent <= config.atr_max_percent * 1.3) atrScore = 0.6;
+    else atrScore = 0.2;
+  }
 
-  // Weighted scores
+  // Weighted scores - only include weights for enabled indicators
   const mw = config.weight_momentum / 100;
   const vw = config.weight_volume / 100;
-  const rsiW = mw * 0.4, macdW = mw * 0.35, rocW = mw * 0.25;
-  const rvolW = vw * 0.6, atrW = vw * 0.4;
+  const rsiW = enabledIndicators.includes('rsi') ? mw * 0.4 : 0;
+  const macdW = enabledIndicators.includes('macd') ? mw * 0.35 : 0;
+  const rocW = enabledIndicators.includes('roc') ? mw * 0.25 : 0;
+  const rvolW = enabledIndicators.includes('rvol') ? vw * 0.6 : 0;
+  const atrW = enabledIndicators.includes('atr') ? vw * 0.4 : 0;
 
   const totalW = rsiW + macdW + rocW + rvolW + atrW;
-  const raw = (rsiScore * rsiW + macdScore * macdW + rocScore * rocW + rvolScore * rvolW + atrScore * atrW) / totalW;
-  const score = Math.min(5, Math.max(1, Math.round(raw * 5 * 10) / 10));
+  // Prevent division by zero - if no indicators enabled, score is 3 (neutral)
+  const score = totalW === 0 
+    ? 3 
+    : Math.min(5, Math.max(1, Math.round(((rsiScore * rsiW + macdScore * macdW + rocScore * rocW + rvolScore * rvolW + atrScore * atrW) / totalW) * 5 * 10) / 10));
 
   const bullish = rsiScore * rsiW + macdScore * macdW + rocScore * rocW;
   const bearish = (1 - rsiScore) * rsiW + (1 - macdScore) * macdW + (1 - rocScore) * rocW;
@@ -128,7 +145,8 @@ function calculateScore(
  */
 export async function fetchTradingViewScreening(
   config: ScoreConfig = DEFAULT_SCORE_CONFIG,
-  limit: number = 150
+  limit: number = 150,
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
 ): Promise<ScreeningResult[]> {
   const payload = {
     filter: [
@@ -185,7 +203,7 @@ export async function fetchTradingViewScreening(
     const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
 
     // Score using TradingView built-in indicators
-    const { score, direction } = calculateScore(rsi, macd, macdSignal, roc, rvol, atrPercent, config);
+    const { score, direction } = calculateScore(rsi, macd, macdSignal, roc, rvol, atrPercent, config, enabledIndicators);
 
     // Volume spike
     const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;

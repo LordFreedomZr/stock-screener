@@ -19,6 +19,7 @@ const defaultConfig: ThresholdConfig = {
   weight_momentum: 50,
   weight_volume: 50,
   max_display: 18,
+  enabled_indicators: ['rsi', 'macd', 'roc', 'rvol', 'atr'],
   created_at: new Date().toISOString(),
 };
 
@@ -143,6 +144,18 @@ export default function SettingsPage() {
         setConfig((prev) => ({ ...prev, max_display: parseInt(savedMaxDisplay) || 18 }));
       }
 
+      // Load enabled indicators from localStorage
+      const savedEnabled = localStorage.getItem('enabled_indicators');
+      if (savedEnabled) {
+        try {
+          const enabledIds: string[] = JSON.parse(savedEnabled);
+          setIndicators((prev) => prev.map((ind) => ({
+            ...ind,
+            enabled: enabledIds.includes(ind.id),
+          })));
+        } catch {}
+      }
+
       const res = await fetch('/api/settings');
       const json = await res.json();
 
@@ -160,6 +173,7 @@ export default function SettingsPage() {
           rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
           weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
           weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
+          enabled_indicators: data.enabled_indicators ?? defaultConfig.enabled_indicators,
           created_at: data.created_at || new Date().toISOString(),
         }));
       }
@@ -179,6 +193,7 @@ export default function SettingsPage() {
     setSaveStatus(null);
     try {
       localStorage.setItem('max_display', config.max_display.toString());
+      localStorage.setItem('enabled_indicators', JSON.stringify(indicators.filter(i => i.enabled).map(i => i.id)));
 
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -193,6 +208,7 @@ export default function SettingsPage() {
           rvol_threshold: config.rvol_threshold,
           weight_momentum: config.weight_momentum,
           weight_volume: config.weight_volume,
+          enabled_indicators: indicators.filter(i => i.enabled).map(i => i.id),
         }),
       });
       const json = await res.json();

@@ -37,7 +37,16 @@ export default function DashboardPage() {
     setFetching(true);
     setError(null);
     try {
-      const response = await fetch('/api/screening');
+      // Get enabled indicators from localStorage
+      const savedEnabled = localStorage.getItem('enabled_indicators');
+      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr'];
+      
+      const params = new URLSearchParams();
+      if (enabledIndicators.length > 0) {
+        params.set('enabled', enabledIndicators.join(','));
+      }
+      
+      const response = await fetch(`/api/screening?${params.toString()}`);
       const data = await response.json();
       
       if (data.success && data.data) {

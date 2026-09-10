@@ -100,7 +100,11 @@ export async function POST(request: NextRequest) {
       result = data;
     }
 
-    return NextResponse.json({ success: true, data: result });
+    // Return result with enabled_indicators from body (stored in localStorage, not DB)
+    return NextResponse.json({ 
+      success: true, 
+      data: { ...result, enabled_indicators: body.enabled_indicators || [] }
+    });
   } catch (error) {
     console.error('Error saving settings:', error);
     return NextResponse.json(

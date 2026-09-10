@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchTradingViewScreening, ScoreConfig, DEFAULT_SCORE_CONFIG } from '@/lib/stocks/tradingview-fetcher';
 import { createClient } from '@supabase/supabase-js';
 
@@ -39,11 +39,21 @@ async function fetchLatestConfig(): Promise<ScoreConfig> {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
   try {
     const config = await fetchLatestConfig();
-    const results = await fetchTradingViewScreening(config, 150);
+    
+    // Get enabled indicators from query params
+    const { searchParams } = new URL(request.url);
+    const enabledParam = searchParams.get('enabled');
+    let enabledIndicators = ['rsi', 'macd', 'roc', 'rvol', 'atr']; // default: all enabled
+    if (enabledParam) {
+      enabledIndicators = enabledParam.split(',').filter(Boolean);
+    }
+
+    const limit = parseInt(searchParams.get('limit') || '150');
+    const results = await fetchTradingViewScreening(config, limit, enabledIndicators);
 
     return NextResponse.json({
       success: true,

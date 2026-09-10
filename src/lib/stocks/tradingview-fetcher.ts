@@ -252,6 +252,100 @@ export async function fetchTradingViewScreening(
 }
 
 /**
+ * Fetch a single stock by ticker from TradingView Scanner (no 150 limit).
+ */
+export async function fetchSingleStock(
+  ticker: string,
+  config: ScoreConfig = DEFAULT_SCORE_CONFIG,
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
+): Promise<ScreeningResult | null> {
+  const payload = {
+    filter: [
+      { left: 'name', operation: 'equal', right: ticker.toUpperCase() },
+      { left: 'type', operation: 'equal', right: 'stock' },
+    ],
+    columns: SCAN_COLUMNS,
+  };
+
+  const response = await fetch(TRADINGVIEW_SCANNER_URL, {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) return null;
+
+  const json = await response.json();
+  const rows = json.data || [];
+  if (!rows.length) return null;
+
+  const d = rows[0].d;
+  if (!d || d.length < SCAN_COLUMNS.length) return null;
+
+  const name = String(d[1] || ticker.toUpperCase());
+  const close = Number(d[2]) || 0;
+  const changePercent = Number(d[3]) || 0;
+  const volume = Number(d[7]) || 0;
+  const turnover = Number(d[8]) || 0;
+  const rsi = d[9] != null ? Number(d[9]) : 50;
+  const macd = Number(d[10]) || 0;
+  const macdSignal = Number(d[11]) || 0;
+  const atrNominal = Number(d[13]) || 0;
+  const avgVol10d = Number(d[14]) || volume;
+  const avgVol30d = Number(d[15]) || volume;
+  const roc = Number(d[16]) || changePercent;
+  const sector = String(d[17] || 'Unknown');
+
+  if (close <= 0) return null;
+
+  const rvol = avgVol10d > 0 ? volume / avgVol10d : 1.0;
+  const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
+  const { score, direction } = calculateScore(rsi, macd, macdSignal, roc, rvol, atrPercent, config, enabledIndicators);
+
+  const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;
+  const spikeVs30d = avgVol30d > 0 ? Math.round(((volume - avgVol30d) / avgVol30d) * 100) : 0;
+  const maxProfitPercent = Math.max(1, Math.round(atrPercent * 2 * 10) / 10);
+  const maxProfitNominal = Math.round(close * (maxProfitPercent / 100));
+  const maxLossPercent = -Math.max(1, Math.round(atrPercent * 10) / 10);
+  const maxLossNominal = Math.round(close * (maxLossPercent / 100));
+
+  return {
+    id: `tv-${ticker.toUpperCase()}`,
+    ticker: ticker.toUpperCase(),
+    name,
+    sector,
+    timestamp: new Date().toISOString(),
+    price: close,
+    price_change_percent: Math.round(changePercent * 100) / 100,
+    volume,
+    turnover_avg: Math.round(avgVol10d * close),
+    score,
+    direction,
+    rsi: Math.round(rsi * 10) / 10,
+    macd: Math.round(macd * 100) / 100,
+    macd_signal: Math.round(macdSignal * 100) / 100,
+    roc: Math.round(roc * 100) / 100,
+    rvol: Math.round(rvol * 100) / 100,
+    obv: volume,
+    atr_percent: Math.round(atrPercent * 100) / 100,
+    max_profit_percent: maxProfitPercent,
+    max_profit_nominal: maxProfitNominal,
+    max_loss_percent: maxLossPercent,
+    max_loss_nominal: maxLossNominal,
+    config_version: `${config.rsi_oversold}-${config.rsi_overbought}`,
+    dataSource: 'tradingview',
+    volume_spike: {
+      yesterday: spikeVs10d,
+      avg_3d: spikeVs10d,
+      avg_5d: spikeVs30d,
+    },
+  };
+}
+
+/**
  * Fetch real-time quotes for multiple IDX tickers in a single TradingView request.
  */
 export async function fetchTradingViewQuotesBatch(

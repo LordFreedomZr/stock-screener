@@ -100,6 +100,7 @@ export default function StockDetailPage() {
       }
 
       // Fetch screening data for this ticker
+      let found = false;
       const screeningResponse = await fetch(`/api/screening?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
       });
@@ -109,6 +110,18 @@ export default function StockDetailPage() {
         const stockData = screeningData.data.find((s: any) => s.ticker === ticker);
         if (stockData) {
           setResult(stockData as ScreeningResult);
+          found = true;
+        }
+      }
+
+      // If not found in top 150, fetch directly
+      if (!found) {
+        const stockResponse = await fetch(`/api/stock/${encodeURIComponent(ticker)}?${params.toString()}`, {
+          signal: abortControllerRef.current.signal,
+        });
+        const stockJson = await stockResponse.json();
+        if (stockJson.success && stockJson.data) {
+          setResult(stockJson.data as ScreeningResult);
         }
       }
 

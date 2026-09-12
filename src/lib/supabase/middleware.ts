@@ -1,10 +1,21 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { jwtDecode } from 'jwt-decode';
+import { ADMIN_EMAILS } from '@/lib/config';
 
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const ADMIN_EMAILS = ['saniccha@gmail.com'];
+
+// Singleton admin client
+let adminClient: ReturnType<typeof createClient> | null = null;
+function getAdminClient() {
+  if (!adminClient && supabaseServiceKey) {
+    adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseServiceKey
+    );
+  }
+  return adminClient;
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -28,31 +39,31 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Try to get user from Supabase session
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Also check for our custom access token cookie
   const accessToken = request.cookies.get('sb-access-token')?.value;
-  
-  // Extract user ID from JWT
   let userId: string | null = null;
   let userEmail: string | null = null;
-  
+
   if (user) {
     userId = user.id;
     userEmail = user.email || null;
   } else if (accessToken && accessToken.length > 0) {
     try {
-      const decoded = jwtDecode<{ sub: string; email?: string }>(accessToken);
-      userId = decoded?.sub || null;
-      userEmail = decoded?.email || null;
+      const parts = accessToken.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+        userId = payload?.sub || null;
+        userEmail = payload?.email || null;
+      }
     } catch {}
   }
 
   const hasValidToken = !!userId;
 
+  // Redirect to login if not authenticated
   if (
     !hasValidToken &&
     !request.nextUrl.pathname.startsWith('/login') &&
@@ -63,42 +74,39 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Check user expiry (skip for admin users and API auth routes)
+  // Check user expiry (skip for admin and auth routes)
   if (userId && !request.nextUrl.pathname.startsWith('/api/auth')) {
     const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase());
-    
-    if (!isAdmin && supabaseServiceKey) {
-      try {
-        const adminSupabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          supabaseServiceKey
-        );
-        const { data: profile } = await adminSupabase
-          .from('user_profiles')
-          .select('expires_at')
-          .eq('id', userId)
-          .maybeSingle();
 
-        if (profile?.expires_at) {
-          const expiryDate = new Date(profile.expires_at);
-          if (expiryDate < new Date()) {
-            // User is expired - redirect to login with error
-            const url = request.nextUrl.clone();
-            url.pathname = '/login';
-            url.searchParams.set('error', 'expired');
-            // Clear auth cookies
-            const response = NextResponse.redirect(url);
-            response.cookies.delete('sb-access-token');
-            response.cookies.delete('sb-refresh-token');
-            return response;
+    if (!isAdmin) {
+      const admin = getAdminClient();
+      if (admin) {
+        try {
+          const { data: profile } = await admin
+            .from('user_profiles')
+            .select('expires_at')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (profile && (profile as { expires_at?: string }).expires_at) {
+            if (new Date((profile as { expires_at: string }).expires_at) < new Date()) {
+              const url = request.nextUrl.clone();
+              url.pathname = '/login';
+              url.searchParams.set('error', 'expired');
+              const response = NextResponse.redirect(url);
+              response.cookies.delete('sb-access-token');
+              response.cookies.delete('sb-refresh-token');
+              return response;
+            }
           }
+        } catch {
+          // user_profiles table might not exist yet
         }
-      } catch {
-        // Table might not exist yet, continue
       }
     }
   }
 
+  // Redirect authenticated users away from login
   if (hasValidToken && request.nextUrl.pathname.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/';

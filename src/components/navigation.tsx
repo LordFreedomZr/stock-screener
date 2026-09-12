@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Star, BarChart3, Settings, LogOut, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createClient } from '@supabase/supabase-js';
 import { useState } from 'react';
 
 const navigation = [

@@ -82,13 +82,15 @@ export async function getWatchlistItems(userId?: string | null, groupName?: stri
     query = query.eq('user_id', userId);
   }
 
-  // Filter by group if provided and column exists
+  // Filter by group if provided (handle missing column gracefully)
   if (groupName && groupName !== 'All') {
-    try {
-      query = query.eq('group_name', groupName);
-    } catch {
-      // group_name column may not exist yet
+    // Try to filter by group_name - will fail silently if column doesn't exist
+    const testQuery = query.eq('group_name', groupName);
+    const { data: testData, error: testError } = await testQuery.limit(0);
+    if (!testError) {
+      query = testQuery;
     }
+    // If column doesn't exist, ignore the group filter
   }
 
   const { data: items, error: itemsError } = await query;
@@ -144,13 +146,12 @@ export async function getWatchlistGroups(userId?: string | null): Promise<string
       query = query.eq('user_id', userId);
     }
 
-    const { data } = await query;
-    if (!data) return ['Default'];
+    const { data, error } = await query;
+    if (error || !data) return ['Default'];
 
-    const groups = [...new Set(data.map((d: any) => d.group_name || 'Default'))];
+    const groups = [...new Set(data.map((d: { group_name?: string | null }) => d.group_name || 'Default'))];
     return groups.length > 0 ? groups.sort() : ['Default'];
   } catch {
-    // group_name column may not exist yet
     return ['Default'];
   }
 }
@@ -301,7 +302,7 @@ export async function addWatchlistItem(
 }
 
 /**
- * Stop watching an item.
+ * Stop watching an item. Returns true if item was actually stopped.
  */
 export async function stopWatchlistItem(ticker: string, userId?: string | null): Promise<boolean> {
   if (!supabase) {
@@ -313,19 +314,21 @@ export async function stopWatchlistItem(ticker: string, userId?: string | null):
     .from('watchlist_items')
     .update({ status: 'stopped', stopped_at: nowIso })
     .eq('ticker', ticker)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .select('id');
 
   if (userId) {
     query = query.eq('user_id', userId);
   }
 
-  const { error } = await query;
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to stop watchlist item: ${error.message}`);
   }
 
-  return true;
+  // Return true only if at least one row was actually updated
+  return Array.isArray(data) && data.length > 0;
 }
 
 /**

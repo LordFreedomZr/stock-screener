@@ -16,6 +16,7 @@ interface FilterPanelProps {
 export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [sectorOpen, setSectorOpen] = useState(false);
+  const [sectorUp, setSectorUp] = useState(false);
   const sectorRef = useRef<HTMLDivElement>(null);
 
   const availableSectors = ['All Sectors', ...new Set(sectors)].filter(Boolean);
@@ -29,6 +30,15 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Calculate dropdown direction when opening
+  useEffect(() => {
+    if (sectorOpen && sectorRef.current) {
+      const rect = sectorRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setSectorUp(spaceBelow < 300);
+    }
+  }, [sectorOpen]);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
     if (value === '') {
@@ -146,10 +156,12 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white flex items-center justify-between"
                 >
                   <span className="truncate">{filters.sector || 'All Sectors'}</span>
-                  <ChevronDown className="w-3 h-3 shrink-0 ml-1" />
+                  <ChevronDown className={`w-3 h-3 shrink-0 ml-1 transition-transform ${sectorUp ? 'rotate-180' : ''}`} />
                 </button>
                 {sectorOpen && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-md border border-gray-700 bg-gray-800 shadow-lg">
+                  <div className={`absolute z-[100] left-0 right-0 max-h-60 overflow-y-auto rounded-md border border-gray-700 bg-gray-800 shadow-lg ${
+                    sectorUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                  }`}>
                     {availableSectors.map((s) => (
                       <button
                         key={s}

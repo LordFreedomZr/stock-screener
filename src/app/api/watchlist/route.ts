@@ -5,7 +5,7 @@ import {
   addWatchlistItem,
   stopWatchlistItem,
 } from '@/lib/stocks/watchlist-service';
-import { getCurrentUser } from '@/lib/supabase/auth';
+import { requireAuth } from '@/lib/supabase/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ function validateAction(action: unknown): action is 'add' | 'stop' {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getCurrentUser(request);
+    const userId = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const group = searchParams.get('group') || undefined;
     const groupsOnly = searchParams.get('groups') === 'true';
@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
     const data = await getWatchlistItems(userId, group);
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     const message = error instanceof Error ? error.message : 'Failed to fetch watchlist';
     console.error('Error fetching watchlist:', error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getCurrentUser(request);
+    const userId = await requireAuth(request);
     const body = await request.json();
     const { ticker, action, price, score, direction, group } = body;
 
@@ -82,19 +85,15 @@ export async function POST(request: NextRequest) {
       });
     } else {
       const stopped = await stopWatchlistItem(cleanTicker, userId);
-      if (!stopped) {
-        return NextResponse.json(
-          { success: false, error: 'Watchlist item not found or already stopped' },
-          { status: 404 }
-        );
-      }
-
       return NextResponse.json({
         success: true,
         message: `${cleanTicker} berhasil dihentikan dari pemantauan aktif.`,
       });
     }
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     const message = error instanceof Error ? error.message : 'Failed to update watchlist';
     console.error('Error updating watchlist:', error);
 

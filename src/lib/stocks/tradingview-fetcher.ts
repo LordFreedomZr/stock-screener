@@ -187,12 +187,12 @@ export async function fetchTradingViewScreening(
     const volume = Number(d[7]) || 0;
     const turnover = Number(d[8]) || 0;
     const rsi = d[9] != null ? Number(d[9]) : 50;
-    const macd = Number(d[10]) || 0;
-    const macdSignal = Number(d[11]) || 0;
+    const macd = Number(d[10]) ?? 0;
+    const macdSignal = Number(d[11]) ?? 0;
     const atrNominal = Number(d[13]) || 0;
     const avgVol10d = Number(d[14]) || volume;
     const avgVol30d = Number(d[15]) || volume;
-    const roc = Number(d[16]) || changePercent;
+    const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
     // Skip illiquid stocks
@@ -293,12 +293,12 @@ export async function fetchSingleStock(
     const volume = Number(d[7]) || 0;
     const turnover = Number(d[8]) || 0;
     const rsi = d[9] != null ? Number(d[9]) : 50;
-    const macd = Number(d[10]) || 0;
-    const macdSignal = Number(d[11]) || 0;
+    const macd = Number(d[10]) ?? 0;
+    const macdSignal = Number(d[11]) ?? 0;
     const atrNominal = Number(d[13]) || 0;
     const avgVol10d = Number(d[14]) || volume;
     const avgVol30d = Number(d[15]) || volume;
-    const roc = Number(d[16]) || changePercent;
+    const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
     if (close <= 0) continue;

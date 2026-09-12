@@ -53,8 +53,8 @@ export function Navigation() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-t border-gray-800">
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="flex items-center justify-around h-16">
+      <div className="overflow-x-auto scrollbar-hide">
+        <div className="flex items-center justify-start lg:justify-around h-16 min-w-max px-2 lg:px-4">
           {items.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -62,7 +62,7 @@ export function Navigation() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
+                  'flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors shrink-0',
                   isActive
                     ? 'text-cyan-400'
                     : 'text-gray-500 hover:text-gray-300'
@@ -79,7 +79,7 @@ export function Navigation() {
           <button
             onClick={handleLogout}
             disabled={loggingOut}
-            className="flex flex-col items-center gap-1 px-2 py-2 text-xs font-medium text-gray-500 hover:text-red-400 transition-colors"
+            className="flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-400 transition-colors shrink-0"
           >
             <LogOut className="w-5 h-5" />
             <span>{loggingOut ? '...' : 'Logout'}</span>

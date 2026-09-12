@@ -128,6 +128,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
               <select
                 value={filters.sector || ''}
                 onChange={(e) => updateFilter('sector', e.target.value)}
+                onClick={(e) => e.stopPropagation()}
                 className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white"
               >
                 <option value="">All Sectors</option>

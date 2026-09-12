@@ -82,9 +82,13 @@ export async function getWatchlistItems(userId?: string | null, groupName?: stri
     query = query.eq('user_id', userId);
   }
 
-  // Filter by group if provided
-  if (groupName) {
-    query = query.eq('group_name', groupName);
+  // Filter by group if provided and column exists
+  if (groupName && groupName !== 'All') {
+    try {
+      query = query.eq('group_name', groupName);
+    } catch {
+      // group_name column may not exist yet
+    }
   }
 
   const { data: items, error: itemsError } = await query;
@@ -130,20 +134,25 @@ export async function getWatchlistItems(userId?: string | null, groupName?: stri
 export async function getWatchlistGroups(userId?: string | null): Promise<string[]> {
   if (!supabase) return ['Default'];
 
-  let query = supabase
-    .from('watchlist_items')
-    .select('group_name')
-    .not('group_name', 'is', null);
+  try {
+    let query = supabase
+      .from('watchlist_items')
+      .select('group_name')
+      .not('group_name', 'is', null);
 
-  if (userId) {
-    query = query.eq('user_id', userId);
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data } = await query;
+    if (!data) return ['Default'];
+
+    const groups = [...new Set(data.map((d: any) => d.group_name || 'Default'))];
+    return groups.length > 0 ? groups.sort() : ['Default'];
+  } catch {
+    // group_name column may not exist yet
+    return ['Default'];
   }
-
-  const { data } = await query;
-  if (!data) return ['Default'];
-
-  const groups = [...new Set(data.map((d) => d.group_name || 'Default'))];
-  return groups.length > 0 ? groups.sort() : ['Default'];
 }
 
 /**
@@ -235,9 +244,13 @@ export async function addWatchlistItem(
     targetItem = updated;
   } else {
     // Insert new entry
+    const insertData: Record<string, unknown> = { ticker, status: 'active', marked_at: nowIso, user_id: userId };
+    if (options?.group) {
+      insertData.group_name = options.group;
+    }
     const { data: inserted, error: insertError } = await supabase
       .from('watchlist_items')
-      .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId, group_name: options?.group || 'Default' })
+      .insert(insertData)
       .select()
       .single();
 

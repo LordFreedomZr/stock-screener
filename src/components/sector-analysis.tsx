@@ -69,7 +69,7 @@ export function SectorAnalysis({ results }: SectorAnalysisProps) {
       </CardHeader>
       {expanded && (
         <CardContent className="pt-0">
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {sectorData.map((sector) => {
               const bullishPercent = sector.count > 0 ? (sector.bullish / sector.count) * 100 : 0;
               return (

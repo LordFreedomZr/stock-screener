@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const ADMIN_EMAILS = ['saniccha@gmail.com'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +20,47 @@ export async function POST(request: NextRequest) {
       });
 
       if (error) throw error;
+
+      // Check user expiry
+      const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
+      
+      if (!isAdmin && supabaseServiceKey && data.user) {
+        const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        // Ensure user profile exists
+        const { data: existingProfile } = await adminSupabase
+          .from('user_profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (!existingProfile) {
+          await adminSupabase.from('user_profiles').insert({
+            id: data.user.id,
+            email: email,
+          });
+        } else {
+          // Update email if missing
+          await adminSupabase.from('user_profiles').update({ email }).eq('id', data.user.id);
+        }
+
+        // Check expiry
+        const { data: profile } = await adminSupabase
+          .from('user_profiles')
+          .select('expires_at')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile?.expires_at) {
+          const expiryDate = new Date(profile.expires_at);
+          if (expiryDate < new Date()) {
+            return NextResponse.json(
+              { success: false, error: 'Akun telah kedaluwarsa. Hubungi admin.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
 
       const response = NextResponse.json({ success: true, user: data.user });
 

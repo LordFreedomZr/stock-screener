@@ -19,6 +19,48 @@ export default function WatchlistPage() {
   const [selectedGroup, setSelectedGroup] = useState<string>('Default');
   const [newGroupName, setNewGroupName] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  const groupsLoadedRef = useRef(false);
+
+  // Load groups from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('watchlist_groups');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setGroups(parsed);
+        }
+      } catch {}
+    }
+    const savedGroup = localStorage.getItem('watchlist_selected_group');
+    if (savedGroup) setSelectedGroup(savedGroup);
+    groupsLoadedRef.current = true;
+  }, []);
+
+  // Save groups to localStorage when changed
+  useEffect(() => {
+    if (groupsLoadedRef.current && groups.length > 0) {
+      localStorage.setItem('watchlist_groups', JSON.stringify(groups));
+    }
+  }, [groups]);
+
+  useEffect(() => {
+    if (groupsLoadedRef.current) {
+      localStorage.setItem('watchlist_selected_group', selectedGroup);
+    }
+  }, [selectedGroup]);
+
+  const addGroup = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setGroups((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const updated = [...prev, trimmed].sort();
+      localStorage.setItem('watchlist_groups', JSON.stringify(updated));
+      return updated;
+    });
+    setSelectedGroup(trimmed);
+  };
 
   const fetchWatchlist = useCallback(async () => {
     // Cancel any previous request
@@ -29,15 +71,8 @@ export default function WatchlistPage() {
 
     setFetching(true);
     try {
-      // Fetch groups
-      const groupsRes = await fetch('/api/watchlist?groups=true');
-      const groupsData = await groupsRes.json();
-      if (groupsData.success && groupsData.data) {
-        setGroups(groupsData.data);
-      }
-
-      // Fetch items for selected group
-      const response = await fetch(`/api/watchlist?group=${encodeURIComponent(selectedGroup)}`, {
+      // Fetch items (without group filter - group filtering done client-side)
+      const response = await fetch(`/api/watchlist`, {
         signal: abortControllerRef.current.signal,
       });
       const data = await response.json();
@@ -260,8 +295,7 @@ export default function WatchlistPage() {
             className="h-8 text-xs w-32 px-2 rounded border border-gray-700 bg-gray-800 text-white"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newGroupName.trim()) {
-                setGroups((prev) => [...new Set([...prev, newGroupName.trim()])]);
-                setSelectedGroup(newGroupName.trim());
+                addGroup(newGroupName);
                 setNewGroupName('');
               }
             }}
@@ -272,8 +306,7 @@ export default function WatchlistPage() {
             className="text-cyan-400 hover:text-cyan-300"
             onClick={() => {
               if (newGroupName.trim()) {
-                setGroups((prev) => [...new Set([...prev, newGroupName.trim()])]);
-                setSelectedGroup(newGroupName.trim());
+                addGroup(newGroupName);
                 setNewGroupName('');
               }
             }}

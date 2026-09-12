@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WatchlistItem } from '@/types';
-import { Star, RefreshCw, CheckCircle, XCircle, Clock, Zap, Target } from 'lucide-react';
+import { Star, RefreshCw, CheckCircle, XCircle, Clock, Zap, Target, X } from 'lucide-react';
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
@@ -60,6 +60,18 @@ export default function WatchlistPage() {
       return updated;
     });
     setSelectedGroup(trimmed);
+  };
+
+  const deleteGroup = (name: string) => {
+    if (name === 'Default') return;
+    setGroups((prev) => {
+      const updated = prev.filter((g) => g !== name);
+      localStorage.setItem('watchlist_groups', JSON.stringify(updated));
+      return updated;
+    });
+    if (selectedGroup === name) {
+      setSelectedGroup('Default');
+    }
   };
 
   const fetchWatchlist = useCallback(async () => {
@@ -276,15 +288,24 @@ export default function WatchlistPage() {
       {/* Group Tabs */}
       <div className="flex gap-2 items-center flex-wrap">
         {groups.map((g) => (
-          <Button
-            key={g}
-            variant={selectedGroup === g ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setSelectedGroup(g)}
-            className={selectedGroup === g ? 'bg-cyan-500 text-gray-950' : 'text-gray-400 hover:text-white'}
-          >
-            {g}
-          </Button>
+          <div key={g} className="flex items-center gap-1">
+            <Button
+              variant={selectedGroup === g ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setSelectedGroup(g)}
+              className={selectedGroup === g ? 'bg-cyan-500 text-gray-950' : 'text-gray-400 hover:text-white'}
+            >
+              {g}
+            </Button>
+            {g !== 'Default' && (
+              <button
+                onClick={() => deleteGroup(g)}
+                className="text-gray-600 hover:text-red-400 transition-colors p-0.5"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         ))}
         <div className="flex items-center gap-1 ml-2">
           <input

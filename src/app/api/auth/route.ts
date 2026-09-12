@@ -113,13 +113,7 @@ export async function POST(request: NextRequest) {
       const { cookies } = request;
       for (const cookie of cookies.getAll()) {
         if (cookie.name.startsWith('sb-') || cookie.name.startsWith('supabase')) {
-          response.cookies.set(cookie.name, '', {
-            path: '/',
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax',
-            maxAge: 0,
-          });
+          response.cookies.delete(cookie.name);
         }
       }
 

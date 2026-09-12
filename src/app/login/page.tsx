@@ -20,6 +20,8 @@ export default function LoginPage() {
     const errorType = searchParams.get('error');
     if (errorType === 'expired') {
       setError('Akun Anda telah kedaluwarsa. Silakan hubungi admin untuk memperpanjang.');
+    } else if (errorType === 'inactive') {
+      setError('Anda telah logout karena tidak aktif selama 10 menit. Silakan login kembali.');
     }
   }, [searchParams]);
 

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/navigation";
 import { UserBadge } from "@/components/user-badge";
+import { AutoLogoutProvider } from "@/components/auto-logout-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
             </div>
           </header>
           <Navigation />
+          <AutoLogoutProvider />
           <main className="pb-20 pt-4">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
               {children}

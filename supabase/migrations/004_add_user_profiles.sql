@@ -1,4 +1,7 @@
--- Create user_profiles table for expiry management
+-- Drop existing policy first
+DROP POLICY IF EXISTS "Service role full access" ON user_profiles;
+
+-- Create table if not exists
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
@@ -13,7 +16,7 @@ ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 -- Service role can do everything
 CREATE POLICY "Service role full access" ON user_profiles FOR ALL USING (true);
 
--- Insert profile for existing users
+-- Insert profile for existing users (skip duplicates)
 INSERT INTO user_profiles (id, email)
 SELECT id, email FROM auth.users
 ON CONFLICT (id) DO NOTHING;

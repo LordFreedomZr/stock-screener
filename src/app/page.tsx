@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { ScreeningCard } from '@/components/screening/screening-card';
 import { FilterPanel } from '@/components/screening/filter-panel';
-import { SectorAnalysis } from '@/components/sector-analysis';
 import { AlertPanel } from '@/components/alert-panel';
 import { EconomicCalendar } from '@/components/economic-calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -258,14 +257,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Sector Filter */}
-      {!loading && results.length > 0 && (
-        <SectorAnalysis
-          results={results}
-          selectedSector={filters.sector}
-          onSectorSelect={(sector) => setFilters({ ...filters, sector })}
-        />
-      )}
+
 
       {/* Price Alerts */}
       {!loading && results.length > 0 && (

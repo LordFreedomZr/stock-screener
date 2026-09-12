@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScreeningResult } from '@/types';
 import {
@@ -80,11 +80,11 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/20 shrink-0">
                 <span className="text-xs font-bold text-cyan-400">{result.ticker.slice(0, 2)}</span>
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-base group-hover:text-cyan-400 transition-colors truncate">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-semibold text-white group-hover:text-cyan-400 transition-colors leading-tight">
                     {result.ticker}
-                  </CardTitle>
+                  </span>
                   <button
                     onClick={handleQuickAdd}
                     disabled={saving}
@@ -93,11 +93,11 @@ export function ScreeningCard({ result }: ScreeningCardProps) {
                     <Star className={`w-3.5 h-3.5 ${saved ? 'fill-yellow-400 text-yellow-400' : ''}`} />
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 truncate">{formatCurrency(result.price)}</p>
+                <p className="text-[11px] text-gray-500 leading-tight">{formatCurrency(result.price)}</p>
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className={`text-xl font-bold ${getScoreColor(result.score)}`}>
+              <div className={`text-xl font-bold leading-tight ${getScoreColor(result.score)}`}>
                 {result.score}
               </div>
               <Badge variant={isBullish ? 'success' : 'destructive'} className="text-[10px] px-1.5 py-0">

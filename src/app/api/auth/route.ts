@@ -16,6 +16,28 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, action } = body;
 
+    if (action === 'logout') {
+      const response = NextResponse.json({ success: true });
+
+      for (const name of ['sb-access-token', 'sb-refresh-token']) {
+        response.cookies.set(name, '', {
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: 0,
+        });
+      }
+
+      for (const cookie of request.cookies.getAll()) {
+        if (cookie.name.startsWith('sb-') || cookie.name.startsWith('supabase')) {
+          response.cookies.delete(cookie.name);
+        }
+      }
+
+      return response;
+    }
+
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return NextResponse.json(
         { success: false, error: 'Email dan password harus diisi' },
@@ -40,13 +62,11 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      // Check user expiry
       const isAdmin = ADMIN_EMAILS.includes(email.trim().toLowerCase());
 
       if (!isAdmin && data.user) {
         const admin = getAdminClient();
         if (admin) {
-          // Upsert profile (avoid race condition)
           const { error: upsertError } = await admin
             .from('user_profiles')
             .upsert(
@@ -58,7 +78,6 @@ export async function POST(request: NextRequest) {
             console.error('Profile upsert error:', upsertError);
           }
 
-          // Check expiry
           const { data: profile } = await admin
             .from('user_profiles')
             .select('expires_at')
@@ -91,30 +110,6 @@ export async function POST(request: NextRequest) {
           sameSite: 'lax',
           maxAge: 60 * 60 * 24 * 30,
         });
-      }
-
-      return response;
-    }
-
-    if (action === 'logout') {
-      const response = NextResponse.json({ success: true });
-
-      const cookiesToClear = ['sb-access-token', 'sb-refresh-token'];
-      for (const name of cookiesToClear) {
-        response.cookies.set(name, '', {
-          path: '/',
-          httpOnly: true,
-          secure: true,
-          sameSite: 'lax',
-          maxAge: 0,
-        });
-      }
-
-      const { cookies } = request;
-      for (const cookie of cookies.getAll()) {
-        if (cookie.name.startsWith('sb-') || cookie.name.startsWith('supabase')) {
-          response.cookies.delete(cookie.name);
-        }
       }
 
       return response;

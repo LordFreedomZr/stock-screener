@@ -5,80 +5,48 @@ import { useRouter, usePathname } from 'next/navigation';
 
 const PAGES = ['/', '/watchlist', '/compare', '/accuracy', '/settings'];
 
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  if (target.closest('[data-swipe-ignore]')) return true;
+  if (target.closest('select, input, button, textarea, a, [role="button"], [role="listbox"]')) return true;
+  const tag = target.tagName;
+  return tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA';
+}
+
 export function SwipeNavigation({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const touchStartX = useRef<number>(0);
-  const touchStartY = useRef<number>(0);
-  const isSwiping = useRef(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const active = useRef(false);
 
   const currentIndex = PAGES.indexOf(pathname);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA') return;
-    if ((e.target as HTMLElement)?.closest('select, input, button, textarea, a, [role="button"]')) return;
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    isSwiping.current = false;
+  const onDown = useCallback((e: React.PointerEvent) => {
+    if (isInteractiveTarget(e.target)) return;
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    active.current = true;
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartX.current) return;
-
-    const deltaX = e.touches[0].clientX - touchStartX.current;
-    const deltaY = e.touches[0].clientY - touchStartY.current;
-
-    // Only register horizontal swipes (dx > dy and minimum distance)
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
-      isSwiping.current = true;
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isSwiping.current) return;
-
-    // We need the final delta to determine direction
-    // But touchEnd doesn't have touches, so we use the last known position
-    // Instead, let's use a simpler approach with touchStart tracking
-    isSwiping.current = false;
-  }, []);
-
-  // Use a more reliable approach with pointer events
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // Skip swipe detection on interactive elements
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA') return;
-    if ((e.target as HTMLElement)?.closest('select, input, button, textarea, a, [role="button"]')) return;
-    touchStartX.current = e.clientX;
-    touchStartY.current = e.clientY;
-    isSwiping.current = false;
-  }, []);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!touchStartX.current) return;
-    const deltaX = e.clientX - touchStartX.current;
-    const deltaY = e.clientY - touchStartY.current;
-
-    // Only trigger on horizontal swipes with sufficient distance
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 80) {
-      if (deltaX < 0 && currentIndex < PAGES.length - 1) {
+  const onUp = useCallback((e: React.PointerEvent) => {
+    if (!active.current) return;
+    active.current = false;
+    const dx = e.clientX - startX.current;
+    const dy = e.clientY - startY.current;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 80) {
+      if (dx < 0 && currentIndex < PAGES.length - 1) {
         router.push(PAGES[currentIndex + 1]);
-      } else if (deltaX > 0 && currentIndex > 0) {
+      } else if (dx > 0 && currentIndex > 0) {
         router.push(PAGES[currentIndex - 1]);
       }
     }
-    touchStartX.current = 0;
-    isSwiping.current = false;
   }, [currentIndex, router]);
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
+      onPointerDown={onDown}
+      onPointerUp={onUp}
       className="min-h-screen touch-pan-y"
     >
       {children}

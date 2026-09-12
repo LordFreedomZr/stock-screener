@@ -55,7 +55,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
   const hasActiveFilters = filters.searchQuery || filters.sector || (filters.sortBy && filters.sortBy !== 'score') || Object.values(filters).some((v) => v !== null && v !== '' && v !== 'score');
 
   return (
-    <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
+    <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl" data-swipe-ignore>
       <CardHeader
         className="pb-3 cursor-pointer select-none"
         onClick={() => {
@@ -132,7 +132,8 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   updateFilter('sector', e.target.value);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                onFocus={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
                 className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white"
               >
                 <option value="">All Sectors</option>

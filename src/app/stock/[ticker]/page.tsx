@@ -13,7 +13,8 @@ import { ScreeningResult, PriceSnapshot } from '@/types';
 import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectionColor } from '@/lib/utils';
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
-  Zap, Target, Shield, Clock, RefreshCw, LineChart 
+  Zap, Target, Shield, Clock, RefreshCw, LineChart, Newspaper, ExternalLink,
+  CheckCircle, AlertTriangle, Minus
 } from 'lucide-react';
 
 export default function StockDetailPage() {
@@ -28,6 +29,10 @@ export default function StockDetailPage() {
   const [fetching, setFetching] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [timeframe, setTimeframe] = useState<{ range: string; interval: string; label: string }>({ range: '3mo', interval: '1d', label: '3M' });
+  const [news, setNews] = useState<{ title: string; link: string; publisher: string; publishedAt: string; thumbnail?: string }[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [mtfData, setMtfData] = useState<Record<string, { rsi: number; macd: number; macd_signal: number; roc: number; rvol: number; direction: string }>>({});
+  const [mtfLoading, setMtfLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const TIMEFRAMES = [
@@ -164,16 +169,100 @@ export default function StockDetailPage() {
         const response = await fetch('/api/watchlist');
         const data = await response.json();
         if (data.success && data.data) {
-          const inWatchlist = data.data.some((item: any) => item.ticker === ticker && item.status === 'active');
+          const inWatchlist = data.data.some((item: { ticker: string; status: string }) => item.ticker === ticker && item.status === 'active');
           setIsInWatchlist(inWatchlist);
         }
       } catch (error) {
         console.error('Error checking watchlist:', error);
       }
     };
-    
+
+    // Fetch news
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      try {
+        const res = await fetch(`/api/news?ticker=${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          setNews(data.data);
+        }
+      } catch {}
+      setNewsLoading(false);
+    };
+
+    // Fetch multi-timeframe data
+    const fetchMTF = async () => {
+      setMtfLoading(true);
+      try {
+        const timeframes = [
+          { label: '1D', range: '5d', interval: '1d' },
+          { label: '1W', range: '1mo', interval: '1d' },
+          { label: '1M', range: '3mo', interval: '1d' },
+          { label: '3M', range: '6mo', interval: '1d' },
+          { label: '6M', range: '1y', interval: '1d' },
+          { label: '1Y', range: '2y', interval: '1wk' },
+        ];
+
+        const results: Record<string, { rsi: number; macd: number; macd_signal: number; roc: number; rvol: number; direction: string }> = {};
+
+        for (const tf of timeframes) {
+          try {
+            const res = await fetch(`/api/history/${encodeURIComponent(ticker)}?range=${tf.range}&interval=${tf.interval}`);
+            const data = await res.json();
+            if (data.success && data.data && data.data.length > 20) {
+              const closes = data.data.map((d: { close: number }) => d.close);
+              const volumes = data.data.map((d: { volume: number }) => d.volume);
+
+              // RSI
+              const period = 14;
+              let gains = 0, losses = 0;
+              for (let i = closes.length - period; i < closes.length; i++) {
+                const change = closes[i] - closes[i - 1];
+                if (change > 0) gains += change;
+                else losses -= change;
+              }
+              const avgGain = gains / period;
+              const avgLoss = losses / period;
+              const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+              const rsi = 100 - (100 / (1 + rs));
+
+              // MACD
+              const k12 = 2 / 13, k26 = 2 / 27;
+              let ema12 = closes[0], ema26 = closes[0];
+              for (let i = 1; i < closes.length; i++) {
+                ema12 = closes[i] * k12 + ema12 * (1 - k12);
+                ema26 = closes[i] * k26 + ema26 * (1 - k26);
+              }
+              const macdLine = ema12 - ema26;
+              const signalLine = macdLine * (2 / 10); // approx
+
+              // ROC (10-period)
+              const roc = closes.length > 10
+                ? ((closes[closes.length - 1] - closes[closes.length - 11]) / closes[closes.length - 11]) * 100
+                : 0;
+
+              // RVOL
+              const avgVol = volumes.slice(-20).reduce((a: number, b: number) => a + b, 0) / 20;
+              const rvol = avgVol > 0 ? volumes[volumes.length - 1] / avgVol : 1;
+
+              // Direction
+              const momentumScore = (rsi > 50 ? 0.5 : -0.5) + (macdLine > signalLine ? 0.3 : -0.3) + (roc > 0 ? 0.2 : -0.2);
+              const direction = momentumScore > 0 ? 'bullish' : 'bearish';
+
+              results[tf.label] = { rsi, macd: macdLine, macd_signal: signalLine, roc, rvol, direction };
+            }
+          } catch {}
+        }
+
+        setMtfData(results);
+      } catch {}
+      setMtfLoading(false);
+    };
+
     checkWatchlist();
-    
+    fetchNews();
+    fetchMTF();
+
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -481,6 +570,138 @@ export default function StockDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Multi-Timeframe Summary */}
+      <Card className="border-gray-800/50 bg-gray-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="w-4 h-4 text-cyan-400" />
+            Multi-Timeframe Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {mtfLoading ? (
+            <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              Analyzing timeframes...
+            </div>
+          ) : Object.keys(mtfData).length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-2 text-gray-500 font-medium">Timeframe</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">Trend</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">RSI</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">MACD</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">ROC</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">RVOL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {['1D', '1W', '1M', '3M', '6M', '1Y'].map((tf) => {
+                    const d = mtfData[tf];
+                    if (!d) return null;
+                    const isBullish = d.direction === 'bullish';
+                    return (
+                      <tr key={tf} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                        <td className="py-2 font-medium text-white">{tf}</td>
+                        <td className="py-2 text-center">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {isBullish ? <CheckCircle className="w-2.5 h-2.5" /> : <AlertTriangle className="w-2.5 h-2.5" />}
+                            {isBullish ? 'Bull' : 'Bear'}
+                          </span>
+                        </td>
+                        <td className="py-2 text-center">
+                          <span className={`font-mono ${
+                            d.rsi < 30 ? 'text-emerald-400' : d.rsi > 70 ? 'text-red-400' : 'text-gray-300'
+                          }`}>
+                            {d.rsi.toFixed(0)}
+                          </span>
+                        </td>
+                        <td className="py-2 text-center">
+                          <span className={`font-mono ${d.macd > d.macd_signal ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {d.macd > d.macd_signal ? '+' : ''}{d.macd.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="py-2 text-center">
+                          <span className={`font-mono ${d.roc >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {d.roc >= 0 ? '+' : ''}{d.roc.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 text-center">
+                          <span className={`font-mono ${d.rvol >= 1.5 ? 'text-cyan-400' : 'text-gray-400'}`}>
+                            {d.rvol.toFixed(1)}x
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-500">
+                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> RSI: &lt;30 oversold, &gt;70 overbought</span>
+                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> MACD: above signal = bullish</span>
+                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> RVOL: &gt;1.5x = high activity</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500 text-sm">No multi-timeframe data available</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* News */}
+      <Card className="border-gray-800/50 bg-gray-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Newspaper className="w-4 h-4 text-blue-400" />
+            News & Sentiment
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {newsLoading ? (
+            <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              Loading news...
+            </div>
+          ) : news.length > 0 ? (
+            <div className="space-y-2">
+              {news.slice(0, 8).map((item, i) => (
+                <a
+                  key={i}
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-800/50 transition-colors group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white group-hover:text-cyan-400 transition-colors line-clamp-2">
+                      {item.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-gray-500">{item.publisher}</span>
+                      {item.publishedAt && (
+                        <span className="text-[10px] text-gray-600">
+                          {new Date(item.publishedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-cyan-400 shrink-0 mt-0.5" />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500 text-sm">
+              <Newspaper className="w-8 h-8 mx-auto mb-2 text-gray-600" />
+              No news available for {ticker}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

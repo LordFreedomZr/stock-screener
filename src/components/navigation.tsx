@@ -18,14 +18,24 @@ const navigation = [
 export function Navigation() {
   const pathname = usePathname();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('is_admin') === 'true';
+    }
+    return false;
+  });
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then(r => r.json())
       .then(data => {
         if (data.success && data.data?.email) {
-          setIsAdmin(ADMIN_EMAILS.includes(data.data.email.toLowerCase()));
+          const admin = ADMIN_EMAILS.includes(data.data.email.toLowerCase());
+          setIsAdmin(admin);
+          localStorage.setItem('is_admin', String(admin));
+        } else {
+          setIsAdmin(false);
+          localStorage.removeItem('is_admin');
         }
       })
       .catch(() => {});
@@ -35,6 +45,7 @@ export function Navigation() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
+      localStorage.removeItem('is_admin');
       await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
+import { ADMIN_EMAILS } from '@/lib/config';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -39,6 +40,11 @@ function LoginForm() {
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
+
+      // Set admin status in localStorage immediately
+      if (ADMIN_EMAILS.includes(email.toLowerCase())) {
+        localStorage.setItem('is_admin', 'true');
+      }
 
       router.push('/');
       router.refresh();

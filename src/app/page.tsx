@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterState, ScreeningResult } from '@/types';
 import { formatCurrency, formatTime } from '@/lib/utils';
-import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp, LayoutGrid, Rows3, Columns3 } from 'lucide-react';
 
 type SpikeTab = 'yesterday' | '3d' | '5d';
 
@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [spikeTab, setSpikeTab] = useState<SpikeTab>('yesterday');
   const [spikeExpanded, setSpikeExpanded] = useState(false);
   const [maxDisplay, setMaxDisplay] = useState(18);
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
 
   const fetchScreeningResults = useCallback(async () => {
     setFetching(true);
@@ -87,7 +88,19 @@ export default function DashboardPage() {
     if (saved) {
       setMaxDisplay(parseInt(saved) || 18);
     }
+
+    // Load density preference
+    const savedDensity = localStorage.getItem('card_density');
+    if (savedDensity === 'compact' || savedDensity === 'comfortable') {
+      setDensity(savedDensity);
+    }
   }, []);
+
+  const toggleDensity = () => {
+    const next = density === 'compact' ? 'comfortable' : 'compact';
+    setDensity(next);
+    localStorage.setItem('card_density', next);
+  };
 
   const filteredResults = useMemo(() => {
     const filtered = results.filter((result) => {
@@ -156,15 +169,25 @@ export default function DashboardPage() {
             {lastUpdate ? `Update terakhir: ${formatTime(lastUpdate)}` : 'Memuat...'}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchScreeningResults}
-          disabled={fetching}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
-          {fetching ? 'Memuat...' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleDensity}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+            title={density === 'compact' ? 'Mode Compact' : 'Mode Comfortable'}
+          >
+            {density === 'compact' ? <Columns3 className="w-3.5 h-3.5" /> : <Rows3 className="w-3.5 h-3.5" />}
+            {density === 'compact' ? 'Compact' : 'Comfortable'}
+          </button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchScreeningResults}
+            disabled={fetching}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
+            {fetching ? 'Memuat...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -305,9 +328,9 @@ export default function DashboardPage() {
         <div className="flex gap-6">
           {/* Stock Cards */}
           <div className="flex-1 min-w-0">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className={`grid gap-4 ${density === 'compact' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'}`}>
               {filteredResults.map((result) => (
-                <ScreeningCard key={result.ticker} result={result} />
+                <ScreeningCard key={result.ticker} result={result} density={density} />
               ))}
             </div>
           </div>

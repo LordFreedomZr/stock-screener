@@ -50,7 +50,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4">
       <Card className="w-full max-w-md border-gray-800/50 bg-gray-900/50">
         <CardHeader className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/20">
@@ -110,6 +110,9 @@ function LoginForm() {
           </form>
         </CardContent>
       </Card>
+      <p className="mt-6 text-xs text-gray-600">
+        &copy; 2026 Create by Sanic | DoubleD Grup
+      </p>
     </div>
   );
 }
@@ -117,7 +120,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="text-gray-500">Loading...</div>
       </div>
     }>

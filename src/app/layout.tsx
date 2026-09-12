@@ -38,7 +38,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-gray-950 text-white antialiased`}>
         <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
           <header className="sticky top-0 z-40 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/50">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
+            <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-cyan-400">Stock Screener IDX</span>
               </div>
@@ -48,7 +48,7 @@ export default function RootLayout({
           <Navigation />
           <AutoLogoutProvider />
           <main className="pb-20 pt-4">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
               {children}
             </div>
           </main>

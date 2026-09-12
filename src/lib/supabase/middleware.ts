@@ -87,6 +87,10 @@ export async function updateSession(request: NextRequest) {
           // user_profiles table might not exist yet
         }
       }
+
+      if (request.nextUrl.pathname.startsWith('/admin')) {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
     }
   }
 

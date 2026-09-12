@@ -258,9 +258,13 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Sector Analysis */}
+      {/* Sector Filter */}
       {!loading && results.length > 0 && (
-        <SectorAnalysis results={results} />
+        <SectorAnalysis
+          results={results}
+          selectedSector={filters.sector}
+          onSectorSelect={(sector) => setFilters({ ...filters, sector })}
+        />
       )}
 
       {/* Price Alerts */}

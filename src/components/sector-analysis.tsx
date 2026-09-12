@@ -3,175 +3,105 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScreeningResult } from '@/types';
-import { BarChart3, ChevronDown, ChevronUp, TrendingUp, TrendingDown, X } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { BarChart3, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SectorAnalysisProps {
   results: ScreeningResult[];
-  onSectorClick?: (sector: string) => void;
+  selectedSector: string;
+  onSectorSelect: (sector: string) => void;
 }
 
-interface SectorData {
-  name: string;
-  count: number;
-  bullish: number;
-  bearish: number;
-  avgScore: number;
-  avgRsi: number;
-  avgRvol: number;
-  topStock: ScreeningResult;
-  stocks: ScreeningResult[];
-}
-
-export function SectorAnalysis({ results, onSectorClick }: SectorAnalysisProps) {
+export function SectorAnalysis({ results, selectedSector, onSectorSelect }: SectorAnalysisProps) {
   const [expanded, setExpanded] = useState(false);
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
 
-  const sectorData = useMemo((): SectorData[] => {
-    const sectorMap = new Map<string, ScreeningResult[]>();
+  const sectorStats = useMemo(() => {
+    const map = new Map<string, { count: number; bullish: number; bearish: number; avgScore: number }>();
 
     results.forEach((r) => {
       const sector = r.sector || 'Unknown';
-      if (!sectorMap.has(sector)) sectorMap.set(sector, []);
-      sectorMap.get(sector)!.push(r);
+      if (!map.has(sector)) map.set(sector, { count: 0, bullish: 0, bearish: 0, avgScore: 0 });
+      const s = map.get(sector)!;
+      s.count++;
+      if (r.direction === 'bullish') s.bullish++;
+      if (r.direction === 'bearish') s.bearish++;
+      s.avgScore += r.score;
     });
 
-    return Array.from(sectorMap.entries())
-      .map(([name, stocks]) => {
-        const bullish = stocks.filter((s) => s.direction === 'bullish').length;
-        const bearish = stocks.filter((s) => s.direction === 'bearish').length;
-        const avgScore = stocks.reduce((sum, s) => sum + s.score, 0) / stocks.length;
-        const avgRsi = stocks.reduce((sum, s) => sum + s.rsi, 0) / stocks.length;
-        const avgRvol = stocks.reduce((sum, s) => sum + s.rvol, 0) / stocks.length;
-        const topStock = [...stocks].sort((a, b) => b.score - a.score)[0];
-
-        return { name, count: stocks.length, bullish, bearish, avgScore, avgRsi, avgRvol, topStock, stocks: [...stocks].sort((a, b) => b.score - a.score) };
-      })
+    return Array.from(map.entries())
+      .map(([name, s]) => ({
+        name,
+        ...s,
+        avgScore: s.avgScore / s.count,
+      }))
       .sort((a, b) => b.avgScore - a.avgScore);
   }, [results]);
 
-  const selectedSectorData = useMemo(() => {
-    if (!selectedSector) return null;
-    return sectorData.find((s) => s.name === selectedSector) || null;
-  }, [sectorData, selectedSector]);
-
-  if (sectorData.length === 0) return null;
+  const SHOW_LIMIT = 6;
+  const visibleSectors = expanded ? sectorStats : sectorStats.slice(0, SHOW_LIMIT);
+  const hasMore = sectorStats.length > SHOW_LIMIT;
 
   return (
     <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
-      <CardHeader
-        className="pb-2 cursor-pointer select-none"
-        onClick={() => setExpanded(!expanded)}
-      >
+      <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-purple-400" />
-            Sector Analysis
-            <span className="text-xs text-gray-500 font-normal">({sectorData.length} sektor)</span>
+            Sector
           </CardTitle>
-          {expanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+          {selectedSector && (
+            <button
+              onClick={() => onSectorSelect('')}
+              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+            >
+              <X className="w-3 h-3" />
+              Clear
+            </button>
           )}
         </div>
       </CardHeader>
-      {expanded && (
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {sectorData.map((sector) => {
-              const bullishPercent = sector.count > 0 ? (sector.bullish / sector.count) * 100 : 0;
-              return (
-                <div
-                  key={sector.name}
-                  className="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800/80 transition-colors cursor-pointer"
-                  onClick={() => {
-                    setSelectedSector(sector.name);
-                    onSectorClick?.(sector.name);
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-white">{sector.name}</span>
-                      <span className="text-xs text-gray-500">({sector.count})</span>
-                    </div>
-                    <span className="text-xs font-mono text-cyan-400">Score {sector.avgScore.toFixed(1)}</span>
-                  </div>
-
-                  <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full"
-                      style={{ width: `${bullishPercent}%` }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1 text-emerald-400">
-                        <TrendingUp className="w-3 h-3" />
-                        {sector.bullish}
-                      </span>
-                      <span className="flex items-center gap-1 text-red-400">
-                        <TrendingDown className="w-3 h-3" />
-                        {sector.bearish}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-500">
-                      <span>RSI {sector.avgRsi.toFixed(0)}</span>
-                      <span>RVOL {sector.avgRvol.toFixed(1)}x</span>
-                    </div>
-                    <span className="text-gray-400">
-                      Top: <span className="text-white">{sector.topStock.ticker}</span> ({sector.topStock.score})
-                    </span>
-                  </div>
+      <CardContent className="pt-0 pb-3 px-4">
+        <div className="flex flex-wrap gap-1.5">
+          {visibleSectors.map((s) => {
+            const isActive = selectedSector === s.name;
+            const bullishPercent = s.count > 0 ? (s.bullish / s.count) * 100 : 0;
+            return (
+              <button
+                key={s.name}
+                onClick={() => onSectorSelect(isActive ? '' : s.name)}
+                className={cn(
+                  'px-2.5 py-1.5 text-xs rounded-lg border transition-all text-left',
+                  isActive
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                    : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-[10px] opacity-60">({s.count})</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {selectedSectorData && (
-            <div className="mt-4 p-3 rounded-lg bg-gray-800/80 border border-gray-700/50">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-white flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-purple-400" />
-                  {selectedSectorData.name}
-                  <span className="text-xs text-gray-500">({selectedSectorData.stocks.length} saham)</span>
-                </h4>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedSector(null);
-                  }}
-                  className="text-gray-500 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                {selectedSectorData.stocks.map((stock) => (
-                  <a
-                    key={stock.ticker}
-                    href={`/stock/${stock.ticker}`}
-                    className="flex items-center justify-between p-2 rounded-md bg-gray-900/50 hover:bg-gray-900/80 transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div>
-                      <p className="text-xs font-medium text-white">{stock.ticker}</p>
-                      <p className="text-[10px] text-gray-500 truncate max-w-[100px]">{stock.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-cyan-400">{formatCurrency(stock.price)}</p>
-                      <p className={`text-[10px] ${stock.price_change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {stock.price_change_percent >= 0 ? '+' : ''}{stock.price_change_percent.toFixed(2)}%
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
+                <div className="flex items-center gap-2 mt-0.5 text-[10px] opacity-70">
+                  <span className="text-emerald-400">{s.bullish}↑</span>
+                  <span className="text-red-400">{s.bearish}↓</span>
+                  <span>{s.avgScore.toFixed(0)}</span>
+                </div>
+              </button>
+            );
+          })}
+          {hasMore && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-700/50 bg-gray-800/50 text-gray-500 hover:text-gray-300 flex items-center gap-1"
+            >
+              {expanded ? (
+                <>Less <ChevronUp className="w-3 h-3" /></>
+              ) : (
+                <>+{sectorStats.length - SHOW_LIMIT} lagi <ChevronDown className="w-3 h-3" /></>
+              )}
+            </button>
           )}
-        </CardContent>
-      )}
+        </div>
+      </CardContent>
     </Card>
   );
 }

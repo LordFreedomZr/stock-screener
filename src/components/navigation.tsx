@@ -47,6 +47,8 @@ export function Navigation() {
     }
   };
 
+  if (pathname === '/login') return null;
+
   const items = isAdmin
     ? [...navigation, { name: 'Admin', href: '/admin', icon: Shield }]
     : navigation;
@@ -54,7 +56,7 @@ export function Navigation() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-t border-gray-800">
       <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex items-center justify-start lg:justify-around h-16 min-w-max px-2 lg:px-4">
+        <div className="flex items-center justify-center h-16 min-w-max px-2 lg:px-4">
           {items.map((item) => {
             const isActive = pathname === item.href;
             return (

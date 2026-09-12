@@ -31,7 +31,6 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Calculate dropdown direction when opening
   useEffect(() => {
     if (sectorOpen && sectorRef.current) {
       const rect = sectorRef.current.getBoundingClientRect();
@@ -40,12 +39,13 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
     }
   }, [sectorOpen]);
 
-  const updateFilter = (key: keyof FilterState, value: string) => {
+  const updateFilter = (key: keyof FilterState, value: string, autoClose = false) => {
     if (value === '') {
       onFiltersChange({ ...filters, [key]: key === 'sortBy' ? 'score' : '' });
-      return;
+    } else {
+      onFiltersChange({ ...filters, [key]: value });
     }
-    onFiltersChange({ ...filters, [key]: value });
+    if (autoClose) setIsOpen(false);
   };
 
   const updateNumFilter = (key: keyof FilterState, value: string) => {
@@ -138,6 +138,9 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   placeholder="Ticker or name"
                   value={filters.searchQuery || ''}
                   onChange={(e) => updateFilter('searchQuery', e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setIsOpen(false);
+                  }}
                   className="h-8 text-xs pl-9"
                 />
               </div>
@@ -168,7 +171,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          updateFilter('sector', s === 'All Sectors' ? '' : s);
+                          updateFilter('sector', s === 'All Sectors' ? '' : s, true);
                           setSectorOpen(false);
                         }}
                         className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 ${
@@ -201,7 +204,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   key={value}
                   onClick={(e) => {
                     e.stopPropagation();
-                    updateFilter('sortBy', value);
+                    updateFilter('sortBy', value, true);
                   }}
                   className={`px-2 py-1 text-xs rounded ${
                     filters.sortBy === value
@@ -227,6 +230,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   min="0"
                   value={filters.priceMin ?? ''}
                   onChange={(e) => updateNumFilter('priceMin', e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setIsOpen(false); }}
                   className="h-8 text-xs"
                 />
                 <span className="text-gray-600">-</span>
@@ -236,6 +240,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   min="0"
                   value={filters.priceMax ?? ''}
                   onChange={(e) => updateNumFilter('priceMax', e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setIsOpen(false); }}
                   className="h-8 text-xs"
                 />
               </div>
@@ -250,6 +255,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                 min="0"
                 value={filters.volumeMin ?? ''}
                 onChange={(e) => updateNumFilter('volumeMin', e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') setIsOpen(false); }}
                 className="h-8 text-xs"
               />
             </div>

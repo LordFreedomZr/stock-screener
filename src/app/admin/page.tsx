@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,8 +32,10 @@ function formatRelativeTime(dateStr: string | null): string {
 const ADMIN_EMAILS = ['saniccha@gmail.com'];
 
 export default function AdminPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -43,11 +46,20 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     try {
       const res = await fetch('/api/admin/users');
+      if (res.status === 403 || res.status === 401) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setUsers(data.data);
+      } else {
+        setAccessDenied(true);
       }
-    } catch {}
+    } catch {
+      setAccessDenied(true);
+    }
     setLoading(false);
   };
 
@@ -122,6 +134,23 @@ export default function AdminPage() {
   };
 
   const onlineCount = users.filter(u => u.is_online).length;
+
+  if (accessDenied) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Card className="border-red-500/50 bg-red-500/10 max-w-md">
+          <CardContent className="p-8 text-center">
+            <Shield className="w-12 h-12 mx-auto mb-4 text-red-400" />
+            <h2 className="text-lg font-bold text-white mb-2">Akses Ditolak</h2>
+            <p className="text-gray-400 text-sm mb-4">Hanya admin yang dapat mengakses halaman ini.</p>
+            <Button onClick={() => router.push('/')} className="bg-cyan-500 hover:bg-cyan-600 text-gray-950">
+              Kembali ke Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

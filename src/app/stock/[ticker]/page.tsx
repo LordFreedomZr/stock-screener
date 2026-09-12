@@ -323,9 +323,9 @@ export default function StockDetailPage() {
   if (!result) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-bold text-white mb-2">Stock Not Found</h2>
-        <p className="text-gray-500 mb-4">No screening data available for {ticker}</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <h2 className="text-xl font-bold text-white mb-2">Saham Tidak Ditemukan</h2>
+        <p className="text-gray-500 mb-4">Tidak ada data screening untuk {ticker}</p>
+        <Button onClick={() => router.back()}>Kembali</Button>
       </div>
     );
   }
@@ -358,7 +358,7 @@ export default function StockDetailPage() {
             </div>
             <p className="text-gray-500 flex items-center gap-2 mt-1">
               <Clock className="w-4 h-4" />
-              Real-time data
+              Data real-time
             </p>
           </div>
         </div>
@@ -377,7 +377,7 @@ export default function StockDetailPage() {
             disabled={watchlistLoading}
           >
             <Star className={`w-4 h-4 mr-2 ${isInWatchlist ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-            {watchlistLoading ? 'Loading...' : isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+            {watchlistLoading ? 'Memuat...' : isInWatchlist ? 'Di Watchlist' : 'Tambah ke Watchlist'}
           </Button>
         </div>
       </div>
@@ -385,7 +385,7 @@ export default function StockDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-500">Current Price</p>
+            <p className="text-sm text-gray-500">Harga Saat Ini</p>
             <p className="text-2xl font-bold text-white">{formatCurrency(result.price)}</p>
             <p className={getDirectionColor(result.direction)}>
               {formatPercent(result.price_change_percent)}
@@ -394,16 +394,16 @@ export default function StockDetailPage() {
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-500">Score</p>
+            <p className="text-sm text-gray-500">Skor</p>
             <p className={`text-2xl font-bold ${getScoreColor(result.score)}`}>
               {result.score}
             </p>
-            <p className="text-xs text-gray-500">out of 5</p>
+            <p className="text-xs text-gray-500">dari 5</p>
           </CardContent>
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-500">Max Profit</p>
+            <p className="text-sm text-gray-500">Profit Maksimal</p>
             <p className="text-2xl font-bold text-emerald-400">
               +{formatPercent(result.max_profit_percent)}
             </p>
@@ -412,7 +412,7 @@ export default function StockDetailPage() {
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-500">Max Loss</p>
+            <p className="text-sm text-gray-500">Loss Maksimal</p>
             <p className="text-2xl font-bold text-red-400">
               {formatPercent(result.max_loss_percent)}
             </p>
@@ -426,7 +426,7 @@ export default function StockDetailPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="w-4 h-4 text-cyan-400" />
-              Price Chart
+              Grafik Harga
             </CardTitle>
             <div className="flex gap-1">
               {TIMEFRAMES.map((tf) => (
@@ -464,7 +464,7 @@ export default function StockDetailPage() {
               <RSIChart data={rsiData} height={180} />
             ) : (
               <div className="h-[180px] flex items-center justify-center text-gray-500 text-sm">
-                Loading RSI data...
+                Memuat data RSI...
               </div>
             )}
           </CardContent>
@@ -482,7 +482,7 @@ export default function StockDetailPage() {
               <MACDChart data={macdData} height={180} />
             ) : (
               <div className="h-[180px] flex items-center justify-center text-gray-500 text-sm">
-                Loading MACD data...
+                Memuat data MACD...
               </div>
             )}
           </CardContent>
@@ -498,7 +498,7 @@ export default function StockDetailPage() {
             </div>
             <p className="text-xl font-bold text-white">{result.rsi.toFixed(1)}</p>
             <p className="text-xs text-gray-500">
-              {result.rsi < 30 ? 'Oversold' : result.rsi > 70 ? 'Overbought' : 'Neutral'}
+              {result.rsi < 30 ? 'Oversold' : result.rsi > 70 ? 'Overbought' : 'Netral'}
             </p>
           </CardContent>
         </Card>
@@ -510,7 +510,7 @@ export default function StockDetailPage() {
             </div>
             <p className="text-xl font-bold text-white">{result.macd.toFixed(2)}</p>
             <p className="text-xs text-gray-500">
-              Signal: {result.macd_signal.toFixed(2)}
+              Sinyal: {result.macd_signal.toFixed(2)}
             </p>
           </CardContent>
         </Card>
@@ -521,7 +521,7 @@ export default function StockDetailPage() {
               <span className="text-sm text-gray-500">ROC</span>
             </div>
             <p className="text-xl font-bold text-white">{result.roc.toFixed(2)}%</p>
-            <p className="text-xs text-gray-500">Rate of Change</p>
+            <p className="text-xs text-gray-500">Laju Perubahan</p>
           </CardContent>
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
@@ -531,7 +531,7 @@ export default function StockDetailPage() {
               <span className="text-sm text-gray-500">RVOL</span>
             </div>
             <p className="text-xl font-bold text-white">{result.rvol.toFixed(2)}x</p>
-            <p className="text-xs text-gray-500">Relative Volume</p>
+            <p className="text-xs text-gray-500">Volume Relatif</p>
           </CardContent>
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
@@ -541,7 +541,7 @@ export default function StockDetailPage() {
               <span className="text-sm text-gray-500">ATR%</span>
             </div>
             <p className="text-xl font-bold text-white">{result.atr_percent.toFixed(2)}%</p>
-            <p className="text-xs text-gray-500">Volatility</p>
+            <p className="text-xs text-gray-500">Volatilitas</p>
           </CardContent>
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
@@ -551,7 +551,7 @@ export default function StockDetailPage() {
               <span className="text-sm text-gray-500">OBV</span>
             </div>
             <p className="text-xl font-bold text-white">{formatNumber(result.obv)}</p>
-            <p className="text-xs text-gray-500">On-Balance Volume</p>
+            <p className="text-xs text-gray-500">Volume On-Balance</p>
           </CardContent>
         </Card>
       </div>
@@ -565,7 +565,7 @@ export default function StockDetailPage() {
         </Card>
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-500 mb-1">Avg Turnover</p>
+            <p className="text-sm text-gray-500 mb-1">Rata-rata Turnover</p>
             <p className="text-xl font-bold text-white">{formatCurrency(result.turnover_avg)}</p>
           </CardContent>
         </Card>
@@ -576,14 +576,14 @@ export default function StockDetailPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400" />
-            Multi-Timeframe Analysis
+            Analisis Multi-Timeframe
           </CardTitle>
         </CardHeader>
         <CardContent>
           {mtfLoading ? (
             <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              Analyzing timeframes...
+              Menganalisis timeframe...
             </div>
           ) : Object.keys(mtfData).length > 0 ? (
             <div className="overflow-x-auto">
@@ -591,7 +591,7 @@ export default function StockDetailPage() {
                 <thead>
                   <tr className="border-b border-gray-800">
                     <th className="text-left py-2 text-gray-500 font-medium">Timeframe</th>
-                    <th className="text-center py-2 text-gray-500 font-medium">Trend</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">Tren</th>
                     <th className="text-center py-2 text-gray-500 font-medium">RSI</th>
                     <th className="text-center py-2 text-gray-500 font-medium">MACD</th>
                     <th className="text-center py-2 text-gray-500 font-medium">ROC</th>
@@ -643,12 +643,12 @@ export default function StockDetailPage() {
               </table>
               <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-500">
                 <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> RSI: &lt;30 oversold, &gt;70 overbought</span>
-                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> MACD: above signal = bullish</span>
-                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> RVOL: &gt;1.5x = high activity</span>
+                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> MACD: di atas sinyal = bullish</span>
+                <span className="flex items-center gap-1"><Minus className="w-2.5 h-2.5" /> RVOL: &gt;1.5x = aktivitas tinggi</span>
               </div>
             </div>
           ) : (
-            <div className="text-center py-4 text-gray-500 text-sm">No multi-timeframe data available</div>
+            <div className="text-center py-4 text-gray-500 text-sm">Tidak ada data multi-timeframe</div>
           )}
         </CardContent>
       </Card>
@@ -658,14 +658,14 @@ export default function StockDetailPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Newspaper className="w-4 h-4 text-blue-400" />
-            News & Sentiment
+            Berita & Sentimen
           </CardTitle>
         </CardHeader>
         <CardContent>
           {newsLoading ? (
             <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              Loading news...
+              Memuat berita...
             </div>
           ) : news.length > 0 ? (
             <div className="space-y-2">
@@ -697,7 +697,7 @@ export default function StockDetailPage() {
           ) : (
             <div className="text-center py-4 text-gray-500 text-sm">
               <Newspaper className="w-8 h-8 mx-auto mb-2 text-gray-600" />
-              No news available for {ticker}
+              Tidak ada berita untuk {ticker}
             </div>
           )}
         </CardContent>

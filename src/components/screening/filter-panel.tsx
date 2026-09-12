@@ -89,7 +89,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
             Filter & Sort
             {hasActiveFilters && (
               <span className="ml-2 px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-400 rounded-full">
-                Active
+                Aktif
               </span>
             )}
           </CardTitle>
@@ -105,7 +105,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                 className="text-gray-400 hover:text-white"
               >
                 <X className="w-4 h-4 mr-1" />
-                Clear
+                Hapus
               </Button>
             )}
             {isOpen && (
@@ -129,13 +129,13 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Search
+                Cari
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <Input
                   type="text"
-                  placeholder="Ticker or name"
+                  placeholder="Ticker atau nama"
                   value={filters.searchQuery || ''}
                   onChange={(e) => updateFilter('searchQuery', e.target.value)}
                   onKeyDown={(e) => {
@@ -147,7 +147,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
             </div>
             <div className="space-y-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Sector
+                Sektor
               </label>
               <div className="relative" ref={sectorRef}>
                 <button
@@ -158,7 +158,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
                   }}
                   className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white flex items-center justify-between"
                 >
-                  <span className="truncate">{filters.sector || 'All Sectors'}</span>
+                  <span className="truncate">{filters.sector || 'Semua Sektor'}</span>
                   <ChevronDown className={`w-3 h-3 shrink-0 ml-1 transition-transform ${sectorUp ? 'rotate-180' : ''}`} />
                 </button>
                 {sectorOpen && (
@@ -190,14 +190,14 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
           <div className="space-y-2">
             <label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
               <ArrowUpDown className="w-3 h-3" />
-              Sort By
+              Urutkan
             </label>
             <div className="grid grid-cols-5 gap-1">
               {[
-                { value: 'score', label: 'Score' },
+                { value: 'score', label: 'Skor' },
                 { value: 'rsi', label: 'RSI' },
                 { value: 'volume', label: 'Volume' },
-                { value: 'price_change', label: 'Chg%' },
+                { value: 'price_change', label: 'Ubah%' },
                 { value: 'rvol', label: 'RVOL' },
               ].map(({ value, label }) => (
                 <button
@@ -221,7 +221,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Price Range
+                Rentang Harga
               </label>
               <div className="flex items-center gap-2">
                 <Input
@@ -247,11 +247,11 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
             </div>
             <div className="space-y-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Min Volume
+                Volume Minimum
               </label>
               <Input
                 type="number"
-                placeholder="Min volume"
+                placeholder="Volume minimum"
                 min="0"
                 value={filters.volumeMin ?? ''}
                 onChange={(e) => updateNumFilter('volumeMin', e.target.value)}

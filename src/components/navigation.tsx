@@ -10,9 +10,9 @@ import { ADMIN_EMAILS } from '@/lib/config';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Watchlist', href: '/watchlist', icon: Star },
-  { name: 'Compare', href: '/compare', icon: GitCompareArrows },
-  { name: 'Accuracy', href: '/accuracy', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Bandingkan', href: '/compare', icon: GitCompareArrows },
+  { name: 'Akurasi', href: '/accuracy', icon: BarChart3 },
+  { name: 'Pengaturan', href: '/settings', icon: Settings },
 ];
 
 export function Navigation() {

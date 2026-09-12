@@ -65,13 +65,13 @@ export function EconomicCalendar() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <Calendar className="w-4 h-4 text-blue-400" />
-            Economic Calendar
+            Kalender Ekonomi
             <span className="text-xs text-gray-500 font-normal">
               (Sep 2026)
             </span>
             {upcomingHighImpact > 0 && (
               <span className="px-2 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">
-                {upcomingHighImpact} high impact
+                {upcomingHighImpact} dampak tinggi
               </span>
             )}
           </CardTitle>
@@ -94,7 +94,7 @@ export function EconomicCalendar() {
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              All
+              Semua
             </button>
             {countries.map((c) => (
               <button
@@ -130,7 +130,7 @@ export function EconomicCalendar() {
                 >
                   <div className="shrink-0 text-center w-12">
                     <p className="text-xs text-gray-500">
-                      {eventDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                      {eventDate.toLocaleDateString('id-ID', { weekday: 'short' })}
                     </p>
                     <p className="text-sm font-bold text-white">
                       {eventDate.getDate()}

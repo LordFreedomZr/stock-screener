@@ -310,7 +310,7 @@ export default function WatchlistPage() {
         <div className="flex items-center gap-1 ml-2">
           <input
             type="text"
-            placeholder="Group name..."
+            placeholder="Nama group..."
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
             className="h-8 text-xs w-32 px-2 rounded border border-gray-700 bg-gray-800 text-white"
@@ -347,7 +347,7 @@ export default function WatchlistPage() {
             onClick={() => setFilter(tab)}
             className={filter === tab ? '' : 'text-gray-400 hover:text-white'}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'all' ? 'Semua' : tab === 'active' ? 'Aktif' : 'Dihentikan'}
             {tab === 'active' && ` (${activeCount})`}
             {tab === 'stopped' && ` (${stoppedCount})`}
           </Button>

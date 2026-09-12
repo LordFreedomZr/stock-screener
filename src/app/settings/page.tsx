@@ -285,7 +285,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
+          <h1 className="text-2xl font-bold text-white">Pengaturan</h1>
           <p className="text-gray-500 text-sm mt-1">
             Pilih indikator TradingView yang ingin digunakan untuk screening
           </p>
@@ -293,19 +293,19 @@ export default function SettingsPage() {
         <div className="flex items-center gap-2">
           {saveStatus === 'success' && (
             <div className="flex items-center gap-1 text-emerald-400 text-sm">
-              <Check className="w-4 h-4" /> Saved!
+              <Check className="w-4 h-4" /> Tersimpan!
             </div>
           )}
           {saveStatus === 'error' && (
             <div className="flex items-center gap-1 text-red-400 text-sm">
-              <X className="w-4 h-4" /> Failed
+              <X className="w-4 h-4" /> Gagal
             </div>
           )}
           <Button variant="outline" onClick={handleReset}>
             <RotateCcw className="w-4 h-4 mr-2" /> Reset
           </Button>
           <Button onClick={handleSave} disabled={saving} className="bg-cyan-500 hover:bg-cyan-600 text-gray-950">
-            <Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save'}
+            <Save className="w-4 h-4 mr-2" /> {saving ? 'Menyimpan...' : 'Simpan'}
           </Button>
         </div>
       </div>

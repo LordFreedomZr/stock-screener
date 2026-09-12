@@ -103,9 +103,9 @@ export function AlertPanel({ results }: AlertPanelProps) {
             ) : (
               <Bell className="w-4 h-4 text-gray-400" />
             )}
-            Price Alerts
+            Alert Harga
             <span className="text-xs text-gray-500 font-normal">
-              ({alerts.length} active)
+              ({alerts.length} aktif)
             </span>
             {highAlerts.length > 0 && (
               <span className="px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded-full">

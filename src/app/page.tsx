@@ -153,7 +153,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">Stock Screener</h1>
           <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
             <Clock className="w-4 h-4" />
-            {lastUpdate ? `Last updated: ${formatTime(lastUpdate)}` : 'Loading...'}
+            {lastUpdate ? `Update terakhir: ${formatTime(lastUpdate)}` : 'Memuat...'}
           </p>
         </div>
         <Button
@@ -163,7 +163,7 @@ export default function DashboardPage() {
           disabled={fetching}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />
-          {fetching ? 'Fetching...' : 'Refresh'}
+          {fetching ? 'Memuat...' : 'Refresh'}
         </Button>
       </div>
 
@@ -177,7 +177,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">{filteredResults.length}</p>
-                <p className="text-xs text-gray-500">Total Stocks</p>
+                <p className="text-xs text-gray-500">Total Saham</p>
               </div>
             </div>
           </CardContent>
@@ -293,11 +293,11 @@ export default function DashboardPage() {
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-12 text-center">
             <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-            <h3 className="text-lg font-medium text-white mb-2">No Results Found</h3>
+            <h3 className="text-lg font-medium text-white mb-2">Tidak Ada Hasil</h3>
             <p className="text-gray-500">
               {results.length === 0
-                ? 'No screening results available yet. Click Refresh to fetch data.'
-                : 'No stocks match your current filters.'}
+                ? 'Belum ada data screening. Klik Refresh untuk mengambil data.'
+                : 'Tidak ada saham yang cocok dengan filter.'}
             </p>
           </CardContent>
         </Card>
@@ -338,7 +338,7 @@ export default function DashboardPage() {
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardContent className="p-4">
           <p className="text-xs text-gray-500 text-center">
-            Data source: TradingView Live Feed | 150+ Top IDX Stocks | Real-time Quotes & Indicators
+            Data source: TradingView Live Feed | 150+ Saham IDX Teratas | Quote & Indikator Real-time
           </p>
         </CardContent>
       </Card>
@@ -362,9 +362,9 @@ function SpikeContent({
       {/* Tabs */}
       <div className="flex border-b border-gray-800">
         {([
-          { key: 'yesterday', label: 'Vs Yesterday' },
-          { key: '3d', label: 'Vs 3D Avg' },
-          { key: '5d', label: 'Vs 5D Avg' },
+          { key: 'yesterday', label: 'Vs Kemarin' },
+          { key: '3d', label: 'Vs Rata-rata 3H' },
+          { key: '5d', label: 'Vs Rata-rata 5H' },
         ] as const).map((tab) => (
           <button
             key={tab.key}

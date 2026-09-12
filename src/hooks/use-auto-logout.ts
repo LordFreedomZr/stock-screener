@@ -4,10 +4,12 @@ import { useEffect, useRef, useCallback } from 'react';
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const EXPIRY_CHECK_INTERVAL = 2 * 60 * 1000; // Check every 2 minutes
+const HEARTBEAT_INTERVAL = 60 * 1000; // Send heartbeat every 1 minute
 
 export function useAutoLogout() {
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const expiryTimer = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatTimer = useRef<NodeJS.Timeout | null>(null);
   const isLoggingOut = useRef(false);
 
   const logout = useCallback(async (reason: string) => {
@@ -37,10 +39,14 @@ export function useAutoLogout() {
       if (data.expired) {
         logout('expired');
       }
-    } catch {
-      // Skip on network error
-    }
+    } catch {}
   }, [logout]);
+
+  const sendHeartbeat = useCallback(async () => {
+    try {
+      await fetch('/api/auth/heartbeat', { method: 'POST' });
+    } catch {}
+  }, []);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) {
@@ -53,8 +59,10 @@ export function useAutoLogout() {
 
   useEffect(() => {
     resetInactivityTimer();
+    sendHeartbeat();
 
     expiryTimer.current = setInterval(checkExpiry, EXPIRY_CHECK_INTERVAL);
+    heartbeatTimer.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
 
     const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
     const handler = () => resetInactivityTimer();
@@ -63,7 +71,8 @@ export function useAutoLogout() {
     return () => {
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
       if (expiryTimer.current) clearInterval(expiryTimer.current);
+      if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
       events.forEach(event => document.removeEventListener(event, handler));
     };
-  }, [resetInactivityTimer, checkExpiry]);
+  }, [resetInactivityTimer, checkExpiry, sendHeartbeat]);
 }

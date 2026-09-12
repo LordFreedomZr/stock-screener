@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilterState } from '@/types';
-import { SlidersHorizontal, X, Minus, Search, ArrowUpDown } from 'lucide-react';
+import { SlidersHorizontal, X, Minus, Search, ArrowUpDown, ChevronDown } from 'lucide-react';
 
 interface FilterPanelProps {
   filters: FilterState;
@@ -15,15 +15,26 @@ interface FilterPanelProps {
 
 export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [sectorOpen, setSectorOpen] = useState(false);
+  const sectorRef = useRef<HTMLDivElement>(null);
 
   const availableSectors = ['All Sectors', ...new Set(sectors)].filter(Boolean);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sectorRef.current && !sectorRef.current.contains(e.target as Node)) {
+        setSectorOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
     if (value === '') {
       onFiltersChange({ ...filters, [key]: key === 'sortBy' ? 'score' : '' });
       return;
     }
-
     onFiltersChange({ ...filters, [key]: value });
   };
 
@@ -55,7 +66,7 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
   const hasActiveFilters = filters.searchQuery || filters.sector || (filters.sortBy && filters.sortBy !== 'score') || Object.values(filters).some((v) => v !== null && v !== '' && v !== 'score');
 
   return (
-    <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl" data-swipe-ignore>
+    <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
       <CardHeader
         className="pb-3 cursor-pointer select-none"
         onClick={() => {
@@ -125,22 +136,39 @@ export function FilterPanel({ filters, onFiltersChange, sectors = [] }: FilterPa
               <label className="text-xs text-gray-500 uppercase tracking-wider">
                 Sector
               </label>
-              <select
-                value={filters.sector || ''}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  updateFilter('sector', e.target.value);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white"
-              >
-                <option value="">All Sectors</option>
-                {availableSectors.filter(s => s !== 'All Sectors').map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <div className="relative" ref={sectorRef}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSectorOpen(!sectorOpen);
+                  }}
+                  className="h-8 text-xs w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-white flex items-center justify-between"
+                >
+                  <span className="truncate">{filters.sector || 'All Sectors'}</span>
+                  <ChevronDown className="w-3 h-3 shrink-0 ml-1" />
+                </button>
+                {sectorOpen && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-md border border-gray-700 bg-gray-800 shadow-lg">
+                    {availableSectors.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateFilter('sector', s === 'All Sectors' ? '' : s);
+                          setSectorOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 ${
+                          (filters.sector || 'All Sectors') === s ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

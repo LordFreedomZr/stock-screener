@@ -101,7 +101,7 @@ export default function WatchlistPage() {
       setLoading(false);
       setFetching(false);
     }
-  }, [selectedGroup]);
+  }, []);
 
   useEffect(() => {
     fetchWatchlist();

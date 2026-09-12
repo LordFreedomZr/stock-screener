@@ -122,17 +122,3 @@ export interface FilterState {
   maxProfitPercent: number | null;
   maxProfitNominal: number | null;
 }
-
-export interface VolumeSpikeData {
-  ticker: string;
-  name: string;
-  sector: string;
-  price: number;
-  currentVolume: number;
-  yesterdayVolume: number;
-  avgVolume3d: number;
-  avgVolume5d: number;
-  spikeVsYesterday: number;
-  spikeVs3dAvg: number;
-  spikeVs5dAvg: number;
-}

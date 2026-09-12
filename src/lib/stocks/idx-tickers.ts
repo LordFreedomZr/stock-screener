@@ -251,41 +251,7 @@ async function fetchTickersFromYahoo(): Promise<IDXStock[]> {
   return results;
 }
 
-// Main function: get all IDX stocks
-export async function getAllIDXStocks(): Promise<IDXStock[]> {
-  try {
-    // Try fetching from Yahoo Finance
-    const dynamicStocks = await fetchTickersFromYahoo();
-
-    if (dynamicStocks.length > 50) {
-      // Got good results from Yahoo, merge with fallback for names
-      const merged = [...FALLBACK_STOCKS];
-      for (const stock of dynamicStocks) {
-        if (!merged.find(s => s.ticker === stock.ticker)) {
-          merged.push(stock);
-        }
-      }
-      return deduplicateStocks(merged);
-    }
-  } catch {
-    // Ignore errors, use fallback
-  }
-
-  // Use fallback list
-  return deduplicateStocks(FALLBACK_STOCKS);
-}
-
-// Get total count
-export function getIDXStockCount(): number {
-  return deduplicateStocks(FALLBACK_STOCKS).length;
-}
-
 // Convert ticker to Yahoo Finance format
 export function toYahooTicker(ticker: string): string {
   return `${ticker}.JK`;
-}
-
-// Get all Yahoo tickers
-export function getAllYahooTickers(): string[] {
-  return FALLBACK_STOCKS.map(stock => `${stock.ticker}.JK`);
 }

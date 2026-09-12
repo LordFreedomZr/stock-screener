@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, ChevronDown, ChevronUp, Globe, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
 interface EconomicEvent {
   id: string;
@@ -46,7 +46,6 @@ export function EconomicCalendar() {
   const countries = useMemo(() => [...new Set(ECONOMIC_EVENTS.map((e) => e.country))].sort(), []);
 
   const filteredEvents = useMemo(() => {
-    const now = new Date();
     return ECONOMIC_EVENTS
       .filter((e) => {
         if (filterCountry !== 'all' && e.country !== filterCountry) return false;

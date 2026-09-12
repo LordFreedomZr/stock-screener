@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users, Plus, Trash2, Clock, Shield, Wifi, WifiOff, Calendar } from 'lucide-react';
+import { Users, Plus, Trash2, Clock, Shield, Wifi, Calendar } from 'lucide-react';
+import { ADMIN_EMAILS } from '@/lib/config';
 
 interface UserData {
   id: string;
@@ -28,8 +29,6 @@ function formatRelativeTime(dateStr: string | null): string {
   const days = Math.floor(hours / 24);
   return `${days} hari lalu`;
 }
-
-const ADMIN_EMAILS = ['saniccha@gmail.com'];
 
 export default function AdminPage() {
   const router = useRouter();

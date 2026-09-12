@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Star, BarChart3, Settings, LogOut, GitCompareArrows, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
-
-const ADMIN_EMAILS = ['saniccha@gmail.com'];
+import { ADMIN_EMAILS } from '@/lib/config';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { fetchHistory } from '@/lib/stocks/fetcher';
 
 export const dynamic = 'force-dynamic';
@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 const TICKER_REGEX = /^[A-Z0-9]{1,10}$/i;
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   try {
@@ -19,8 +19,12 @@ export async function GET(
       );
     }
 
+    const { searchParams } = new URL(request.url);
+    const range = searchParams.get('range') || '3mo';
+    const interval = searchParams.get('interval') || '1d';
+
     const cleanTicker = ticker.toUpperCase();
-    const history = await fetchHistory(cleanTicker, '3mo', '1d');
+    const history = await fetchHistory(cleanTicker, range, interval);
 
     const snapshots = history.map((h) => ({
       id: `${cleanTicker}-${h.timestamp}`,

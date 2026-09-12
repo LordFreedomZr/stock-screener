@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Star, BarChart3, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Star, BarChart3, Settings, LogOut, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useState } from 'react';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Watchlist', href: '/watchlist', icon: Star },
+  { name: 'Compare', href: '/compare', icon: GitCompareArrows },
   { name: 'Accuracy', href: '/accuracy', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

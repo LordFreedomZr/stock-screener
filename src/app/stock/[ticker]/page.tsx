@@ -27,7 +27,17 @@ export default function StockDetailPage() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [timeframe, setTimeframe] = useState<{ range: string; interval: string; label: string }>({ range: '3mo', interval: '1d', label: '3M' });
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const TIMEFRAMES = [
+    { range: '1mo', interval: '1d', label: '1M' },
+    { range: '3mo', interval: '1d', label: '3M' },
+    { range: '6mo', interval: '1d', label: '6M' },
+    { range: '1y', interval: '1d', label: '1Y' },
+    { range: '2y', interval: '1wk', label: '2Y' },
+    { range: '5y', interval: '1mo', label: '5Y' },
+  ];
 
   // Calculate RSI from price data (must be before any conditional returns)
   const rsiData = useMemo(() => {
@@ -126,7 +136,7 @@ export default function StockDetailPage() {
       }
 
       // Fetch price history for chart
-      const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}`, {
+      const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}?range=${timeframe.range}&interval=${timeframe.interval}`, {
         signal: abortControllerRef.current.signal,
       });
       const historyData = await historyResponse.json();
@@ -169,7 +179,7 @@ export default function StockDetailPage() {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchData, ticker]);
+  }, [fetchData, ticker, timeframe]);
 
   const toggleWatchlist = async () => {
     setWatchlistLoading(true);
@@ -324,10 +334,27 @@ export default function StockDetailPage() {
 
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Activity className="w-4 h-4 text-cyan-400" />
-            Price Chart (3 Months)
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4 text-cyan-400" />
+              Price Chart
+            </CardTitle>
+            <div className="flex gap-1">
+              {TIMEFRAMES.map((tf) => (
+                <button
+                  key={tf.label}
+                  onClick={() => setTimeframe(tf)}
+                  className={`px-2 py-1 text-xs rounded ${
+                    timeframe.label === tf.label
+                      ? 'bg-cyan-500 text-gray-950 font-medium'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <StockChart data={priceData} height={350} indicators={{ showVolume: true }} />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getWatchlistItems,
+  getWatchlistGroups,
   addWatchlistItem,
   stopWatchlistItem,
 } from '@/lib/stocks/watchlist-service';
@@ -24,7 +25,16 @@ function validateAction(action: unknown): action is 'add' | 'stop' {
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUser(request);
-    const data = await getWatchlistItems(userId);
+    const { searchParams } = new URL(request.url);
+    const group = searchParams.get('group') || undefined;
+    const groupsOnly = searchParams.get('groups') === 'true';
+
+    if (groupsOnly) {
+      const groups = await getWatchlistGroups(userId);
+      return NextResponse.json({ success: true, data: groups });
+    }
+
+    const data = await getWatchlistItems(userId, group);
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to fetch watchlist';
@@ -37,7 +47,7 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getCurrentUser(request);
     const body = await request.json();
-    const { ticker, action, price, score, direction } = body;
+    const { ticker, action, price, score, direction, group } = body;
 
     if (!validateTicker(ticker)) {
       return NextResponse.json(
@@ -61,6 +71,7 @@ export async function POST(request: NextRequest) {
         score: typeof score === 'number' ? score : undefined,
         direction: direction === 'bullish' || direction === 'bearish' ? direction : undefined,
         userId,
+        group: typeof group === 'string' ? group : 'Default',
       });
 
       return NextResponse.json({

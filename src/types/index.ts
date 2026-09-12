@@ -57,6 +57,7 @@ export interface WatchlistItem {
   status: 'active' | 'stopped';
   marked_at: string;
   stopped_at: string | null;
+  group_name: string;
   stock?: Stock;
   latest_evaluation?: WatchlistEvaluation;
   entry_price?: number;
@@ -111,6 +112,8 @@ export interface AccuracyStats {
 
 export interface FilterState {
   searchQuery: string;
+  sector: string;
+  sortBy: 'score' | 'rsi' | 'volume' | 'price_change' | 'rvol';
   priceMin: number | null;
   priceMax: number | null;
   volumeMin: number | null;

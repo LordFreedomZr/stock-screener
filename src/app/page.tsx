@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
+    sector: '',
+    sortBy: 'score',
     priceMin: null,
     priceMax: null,
     volumeMin: null,
@@ -93,6 +95,7 @@ export default function DashboardPage() {
         const matchesName = result.name?.toLowerCase().includes(query);
         if (!matchesTicker && !matchesName) return false;
       }
+      if (filters.sector && result.sector !== filters.sector) return false;
       if (filters.priceMin !== null && result.price < filters.priceMin) return false;
       if (filters.priceMax !== null && result.price > filters.priceMax) return false;
       if (filters.volumeMin !== null && result.volume < filters.volumeMin) return false;
@@ -103,12 +106,22 @@ export default function DashboardPage() {
       return true;
     });
 
-    // Sort by score (highest first)
-    filtered.sort((a, b) => b.score - a.score);
+    // Sort
+    const sortBy = filters.sortBy || 'score';
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'rsi': return b.rsi - a.rsi;
+        case 'volume': return b.volume - a.volume;
+        case 'price_change': return b.price_change_percent - a.price_change_percent;
+        case 'rvol': return b.rvol - a.rvol;
+        default: return b.score - a.score;
+      }
+    });
 
-    // Apply max display limit
     return filtered.slice(0, maxDisplay);
   }, [results, filters, maxDisplay]);
+
+  const sectors = useMemo(() => [...new Set(results.map(r => r.sector).filter((s): s is string => Boolean(s)))].sort(), [results]);
 
   const volumeRanking = useMemo(() => {
     const withSpikes = results
@@ -196,7 +209,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Filter */}
-      <FilterPanel filters={filters} onFiltersChange={setFilters} />
+      <FilterPanel filters={filters} onFiltersChange={setFilters} sectors={sectors} />
 
       {/* Error State */}
       {error && (

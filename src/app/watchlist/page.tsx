@@ -15,6 +15,9 @@ export default function WatchlistPage() {
   const [evaluating, setEvaluating] = useState(false);
   const [evalNotice, setEvalNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('active');
+  const [groups, setGroups] = useState<string[]>(['Default']);
+  const [selectedGroup, setSelectedGroup] = useState<string>('Default');
+  const [newGroupName, setNewGroupName] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchWatchlist = useCallback(async () => {
@@ -26,7 +29,15 @@ export default function WatchlistPage() {
 
     setFetching(true);
     try {
-      const response = await fetch('/api/watchlist', {
+      // Fetch groups
+      const groupsRes = await fetch('/api/watchlist?groups=true');
+      const groupsData = await groupsRes.json();
+      if (groupsData.success && groupsData.data) {
+        setGroups(groupsData.data);
+      }
+
+      // Fetch items for selected group
+      const response = await fetch(`/api/watchlist?group=${encodeURIComponent(selectedGroup)}`, {
         signal: abortControllerRef.current.signal,
       });
       const data = await response.json();
@@ -36,7 +47,6 @@ export default function WatchlistPage() {
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        // Request was cancelled, ignore
         return;
       }
       console.error('Error fetching watchlist:', error);
@@ -44,7 +54,7 @@ export default function WatchlistPage() {
       setLoading(false);
       setFetching(false);
     }
-  }, []);
+  }, [selectedGroup]);
 
   useEffect(() => {
     fetchWatchlist();
@@ -226,6 +236,51 @@ export default function WatchlistPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Group Tabs */}
+      <div className="flex gap-2 items-center flex-wrap">
+        {groups.map((g) => (
+          <Button
+            key={g}
+            variant={selectedGroup === g ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setSelectedGroup(g)}
+            className={selectedGroup === g ? 'bg-cyan-500 text-gray-950' : 'text-gray-400 hover:text-white'}
+          >
+            {g}
+          </Button>
+        ))}
+        <div className="flex items-center gap-1 ml-2">
+          <input
+            type="text"
+            placeholder="Group name..."
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            className="h-8 text-xs w-32 px-2 rounded border border-gray-700 bg-gray-800 text-white"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newGroupName.trim()) {
+                setGroups((prev) => [...new Set([...prev, newGroupName.trim()])]);
+                setSelectedGroup(newGroupName.trim());
+                setNewGroupName('');
+              }
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-cyan-400 hover:text-cyan-300"
+            onClick={() => {
+              if (newGroupName.trim()) {
+                setGroups((prev) => [...new Set([...prev, newGroupName.trim()])]);
+                setSelectedGroup(newGroupName.trim());
+                setNewGroupName('');
+              }
+            }}
+          >
+            +
+          </Button>
+        </div>
       </div>
 
       {/* Filter Tabs */}

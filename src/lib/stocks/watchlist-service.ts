@@ -66,7 +66,7 @@ export function determineEvaluationStatus(
 /**
  * Get all watchlist items with their latest evaluation.
  */
-export async function getWatchlistItems(userId?: string | null): Promise<WatchlistItem[]> {
+export async function getWatchlistItems(userId?: string | null, groupName?: string): Promise<WatchlistItem[]> {
   if (!supabase) {
     console.error('Supabase not configured - cannot fetch watchlist');
     return [];
@@ -80,6 +80,11 @@ export async function getWatchlistItems(userId?: string | null): Promise<Watchli
   // Filter by user_id if provided
   if (userId) {
     query = query.eq('user_id', userId);
+  }
+
+  // Filter by group if provided
+  if (groupName) {
+    query = query.eq('group_name', groupName);
   }
 
   const { data: items, error: itemsError } = await query;
@@ -120,11 +125,33 @@ export async function getWatchlistItems(userId?: string | null): Promise<Watchli
 }
 
 /**
+ * Get all unique group names for a user.
+ */
+export async function getWatchlistGroups(userId?: string | null): Promise<string[]> {
+  if (!supabase) return ['Default'];
+
+  let query = supabase
+    .from('watchlist_items')
+    .select('group_name')
+    .not('group_name', 'is', null);
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data } = await query;
+  if (!data) return ['Default'];
+
+  const groups = [...new Set(data.map((d) => d.group_name || 'Default'))];
+  return groups.length > 0 ? groups.sort() : ['Default'];
+}
+
+/**
  * Add a stock to watchlist. Supabase only - no local fallback.
  */
 export async function addWatchlistItem(
   ticker: string,
-  options?: { price?: number; score?: number; direction?: 'bullish' | 'bearish'; userId?: string | null }
+  options?: { price?: number; score?: number; direction?: 'bullish' | 'bearish'; userId?: string | null; group?: string }
 ): Promise<{ item: WatchlistItem; evaluation: WatchlistEvaluation }> {
   if (!supabase) {
     throw new Error('Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
@@ -210,7 +237,7 @@ export async function addWatchlistItem(
     // Insert new entry
     const { data: inserted, error: insertError } = await supabase
       .from('watchlist_items')
-      .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId })
+      .insert({ ticker, status: 'active', marked_at: nowIso, user_id: userId, group_name: options?.group || 'Default' })
       .select()
       .single();
 

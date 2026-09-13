@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users, Plus, Trash2, Clock, Shield, Wifi, Calendar } from 'lucide-react';
+import { Users, Plus, Trash2, Clock, Shield, Wifi, Calendar, Activity, ArrowDownToLine } from 'lucide-react';
 import { ADMIN_EMAILS } from '@/lib/config';
 
 interface UserData {
@@ -41,6 +41,8 @@ export default function AdminPage() {
   const [editUser, setEditUser] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [logs, setLogs] = useState<{ id: string; user_email: string; action: string; detail: string; created_at: string }[]>([]);
+  const [logsLoading, setLogsLoading] = useState(true);
 
   const fetchUsers = async () => {
     try {
@@ -62,7 +64,17 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(); fetchLogs(); }, []);
+
+  const fetchLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const res = await fetch('/api/admin/activity');
+      const data = await res.json();
+      if (data.success) setLogs(data.data);
+    } catch {}
+    setLogsLoading(false);
+  };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -283,6 +295,55 @@ export default function AdminPage() {
           })}
         </div>
       )}
+
+      {/* Activity Logs */}
+      <Card className="border-gray-800/50 bg-gray-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            Log Aktivitas
+            <button onClick={fetchLogs} className="ml-auto text-xs text-gray-500 hover:text-white">
+              Refresh
+            </button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {logsLoading ? (
+            <div className="text-center text-gray-500 py-4 text-sm">Memuat log...</div>
+          ) : logs.length === 0 ? (
+            <div className="text-center text-gray-500 py-4 text-sm">Belum ada aktivitas</div>
+          ) : (
+            <div className="space-y-1 max-h-96 overflow-y-auto">
+              {logs.map((log) => (
+                <div key={log.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/30 text-xs">
+                  <div className="shrink-0">
+                    {log.action === 'login' && <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-400" />}
+                    {log.action === 'logout' && <ArrowDownToLine className="w-3.5 h-3.5 text-gray-400 rotate-180" />}
+                    {log.action === 'settings_update' && <Activity className="w-3.5 h-3.5 text-blue-400" />}
+                    {log.action === 'watchlist_add' && <Activity className="w-3.5 h-3.5 text-yellow-400" />}
+                    {log.action === 'watchlist_stop' && <Activity className="w-3.5 h-3.5 text-orange-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-white font-medium">{log.user_email || 'Unknown'}</span>
+                    <span className="text-gray-500 mx-1.5">·</span>
+                    <span className="text-gray-400">
+                      {log.action === 'login' && 'Login'}
+                      {log.action === 'logout' && 'Logout'}
+                      {log.action === 'settings_update' && 'Update Settings'}
+                      {log.action === 'watchlist_add' && 'Tambah Watchlist'}
+                      {log.action === 'watchlist_stop' && 'Stop Watchlist'}
+                    </span>
+                    {log.detail && <span className="text-gray-500 ml-1">({log.detail})</span>}
+                  </div>
+                  <span className="text-gray-600 shrink-0">
+                    {new Date(log.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

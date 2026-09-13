@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ADMIN_EMAILS } from '@/lib/config';
+import { logActivity } from '@/lib/activity-logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -17,6 +18,16 @@ export async function POST(request: NextRequest) {
     const { email, password, action } = body;
 
     if (action === 'logout') {
+      // Get user email from access token before clearing
+      const accessToken = request.cookies.get('sb-access-token')?.value;
+      let logoutEmail = '';
+      if (accessToken) {
+        try {
+          const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
+          logoutEmail = payload.email || '';
+        } catch {}
+      }
+
       const response = NextResponse.json({ success: true });
 
       for (const name of ['sb-access-token', 'sb-refresh-token']) {
@@ -34,6 +45,8 @@ export async function POST(request: NextRequest) {
           response.cookies.delete(cookie.name);
         }
       }
+
+      logActivity({ user_email: logoutEmail, action: 'logout' });
 
       return response;
     }
@@ -111,6 +124,8 @@ export async function POST(request: NextRequest) {
           maxAge: 60 * 60 * 24 * 30,
         });
       }
+
+      logActivity({ user_id: data.user.id, user_email: email.trim().toLowerCase(), action: 'login' });
 
       return response;
     }

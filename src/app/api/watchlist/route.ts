@@ -6,6 +6,7 @@ import {
   stopWatchlistItem,
 } from '@/lib/stocks/watchlist-service';
 import { requireAuth } from '@/lib/supabase/auth';
+import { logActivity } from '@/lib/activity-logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,8 @@ export async function POST(request: NextRequest) {
         group: typeof group === 'string' ? group : 'Default',
       });
 
+      logActivity({ user_id: userId, action: 'watchlist_add', detail: `${cleanTicker} ditambahkan ke watchlist` });
+
       return NextResponse.json({
         success: true,
         data: item,
@@ -85,6 +88,9 @@ export async function POST(request: NextRequest) {
       });
     } else {
       const stopped = await stopWatchlistItem(cleanTicker, userId);
+
+      logActivity({ user_id: userId, action: 'watchlist_stop', detail: `${cleanTicker} dihentikan dari pemantauan` });
+
       return NextResponse.json({
         success: true,
         message: `${cleanTicker} berhasil dihentikan dari pemantauan aktif.`,

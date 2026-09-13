@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '@/lib/supabase/auth';
+import { logActivity } from '@/lib/activity-logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: { ...result, enabled_indicators: body.enabled_indicators || [] },
     });
+
+    logActivity({ user_id: userId, action: 'settings_update', detail: 'Update indikator & threshold' });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

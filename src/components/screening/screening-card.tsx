@@ -126,6 +126,38 @@ export function ScreeningCard({ result, density = 'compact' }: ScreeningCardProp
                 {result.rsi.toFixed(1)}
               </span>
             </div>
+            {result.stoch_k !== undefined && (
+              <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
+                <span className="text-gray-500">Stoch</span>
+                <span className={`font-medium ${result.stoch_k < 20 ? 'text-emerald-400' : result.stoch_k > 80 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {result.stoch_k.toFixed(1)}/{result.stoch_d?.toFixed(1) ?? '-'}
+                </span>
+              </div>
+            )}
+            {result.bb_percent !== undefined && (
+              <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
+                <span className="text-gray-500">BB %B</span>
+                <span className={`font-medium ${result.bb_percent < 0.2 ? 'text-emerald-400' : result.bb_percent > 0.8 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {(result.bb_percent * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
+            {result.adx !== undefined && (
+              <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
+                <span className="text-gray-500">ADX</span>
+                <span className={`font-medium ${result.adx > 25 ? (result.plus_di && result.minus_di && result.plus_di > result.minus_di ? 'text-emerald-400' : 'text-red-400') : 'text-yellow-400'}`}>
+                  {result.adx.toFixed(1)} {result.plus_di && result.minus_di ? (result.plus_di > result.minus_di ? '+DI' : '-DI') : ''}
+                </span>
+              </div>
+            )}
+            {result.sentiment_score !== undefined && result.sentiment_score !== 0 && (
+              <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
+                <span className="text-gray-500">Sentimen</span>
+                <span className={`font-medium ${result.sentiment_score > 0.1 ? 'text-emerald-400' : result.sentiment_score < -0.1 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {result.sentiment_label === 'positive' ? 'Positif' : result.sentiment_label === 'negative' ? 'Negatif' : 'Netral'}
+                </span>
+              </div>
+            )}
             <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
               <span className="text-gray-500 flex items-center gap-1.5">
                 <BarChart3 className={compact ? 'w-3 h-3' : 'w-4 h-4'} />

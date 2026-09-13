@@ -33,6 +33,8 @@ async function fetchLatestConfig(): Promise<ScoreConfig> {
       rvol_threshold: data.rvol_threshold ?? DEFAULT_SCORE_CONFIG.rvol_threshold,
       weight_momentum: data.weight_momentum ?? DEFAULT_SCORE_CONFIG.weight_momentum,
       weight_volume: data.weight_volume ?? DEFAULT_SCORE_CONFIG.weight_volume,
+      weight_volatility: data.weight_volatility ?? DEFAULT_SCORE_CONFIG.weight_volatility,
+      weight_sentiment: data.weight_sentiment ?? DEFAULT_SCORE_CONFIG.weight_sentiment,
     };
   } catch {
     return DEFAULT_SCORE_CONFIG;
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
     // Get enabled indicators from query params
     const { searchParams } = new URL(request.url);
     const enabledParam = searchParams.get('enabled');
-    let enabledIndicators = ['rsi', 'macd', 'roc', 'rvol', 'atr']; // default: all enabled
+    let enabledIndicators = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']; // default: all enabled
     if (enabledParam) {
       enabledIndicators = enabledParam.split(',').filter(Boolean);
     }

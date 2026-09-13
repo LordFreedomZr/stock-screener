@@ -27,7 +27,7 @@ interface IndicatorDef {
   id: string;
   name: string;
   description: string;
-  category: 'momentum' | 'volume' | 'volatility';
+  category: 'momentum' | 'volume' | 'volatility' | 'sentiment';
   enabled: boolean;
   params: { key: string; label: string; min: number; max: number; step: number }[];
   info: {
@@ -124,6 +124,58 @@ const defaultIndicators: IndicatorDef[] = [
       fungsi: 'Menunjukkan perubahan harga dalam persentase selama 1 minggu terakhir. Positive = harga naik minggu ini. Negative = harga turun minggu ini.',
       caraBaca: 'Perf.W > 0 = Harga naik minggu ini (bullish). Perf.W < 0 = Harga turun minggu ini (bearish). Semakin besar persentase, semakin kuat pergerakan.',
       tips: 'Gunakan sebagai konfirmasi tren. Saham dengan Perf.W positif dan RVOL tinggi menunjukkan minat beli yang kuat. Perf.W negatif bisa jadi peluang beli (buy the dip) jika RSI oversold.',
+    },
+  },
+  {
+    id: 'bb',
+    name: 'Bollinger Bands (20,2)',
+    description: 'Bollinger Bands - volatility envelope around price',
+    category: 'volatility',
+    enabled: false,
+    params: [],
+    info: {
+      fungsi: 'Membungkus harga dengan 2 band (atas dan bawah) yang berjarak 2 standar deviasi dari SMA20. Band melebar = volatilitas tinggi, band menyempit = volatilitas rendah.',
+      caraBaca: '%B > 0.8 = Harga dekat upper band (overbought). %B < 0.2 = Harga dekat lower band (oversold). %B 0.4-0.6 = Harga di tengah (netral).',
+      tips: 'Gunakan %B untuk konfirmasi RSI. Jika RSI oversold + %B < 0.2, kemungkinan reversal kuat. Band squeeze (menyempit) sering mendahului breakout besar.',
+    },
+  },
+  {
+    id: 'stoch',
+    name: 'Stochastic (14,3,3)',
+    description: 'Stochastic Oscillator - overbought/oversold detector',
+    category: 'momentum',
+    enabled: false,
+    params: [],
+    info: {
+      fungsi: 'Membandingkan harga penutup dengan range harga selama periode tertentu. %K = garis utama, %D = rata-rata 3 hari dari %K. Bergerak antara 0-100.',
+      caraBaca: 'K > 80 = Overbought (harga tinggi, potensi turun). K < 20 = Oversold (harga rendah, potensi naik). K cross D di bawah 20 = Golden cross (sinyal beli kuat). K cross D di atas 80 = Death cross (sinyal jual kuat).',
+      tips: 'Stochastic paling akurat di sideways market. Gunakan K < 20 + K cross D = beli. K > 80 + K cross D = jual. Kombinasikan dengan support/resistance.',
+    },
+  },
+  {
+    id: 'adx',
+    name: 'ADX (14)',
+    description: 'Average Directional Index - trend strength',
+    category: 'volatility',
+    enabled: false,
+    params: [],
+    info: {
+      fungsi: 'Mengukur kekuatan tren (bukan arah). ADX > 25 = tren kuat, ADX < 20 = tren lemah. +DI dan -DI menunjukkan arah tren.',
+      caraBaca: 'ADX > 25 + +DI > -DI = Tren naik kuat (bullish). ADX > 25 + -DI > +DI = Tren turun kuat (bearish). ADX < 20 = Tidak ada tren (sideways).',
+      tips: 'Gunakan ADX untuk filter: hanya trade saat ADX > 25. ADX rising = tren menguat. ADX falling = tren melemah. Gunakan +DI/-DI untuk arah entry.',
+    },
+  },
+  {
+    id: 'sentiment',
+    name: 'Sentiment Berita',
+    description: 'Analisis sentimen dari berita/headline',
+    category: 'sentiment',
+    enabled: false,
+    params: [],
+    info: {
+      fungsi: 'Menganalisis sentimen berita keuangan Indonesia menggunakan keyword matching. Positive words = naik, negative words = turun. Tidak membutuhkan API eksternal.',
+      caraBaca: 'Score > 0.1 = Sentimen positif (berita bagus). Score < -0.1 = Sentimen negatif (berita buruk). Score 0 = Netral. Confidence tinggi = banyak kata sentimen ditemukan.',
+      tips: 'Sentiment membantu konfirmasi sinyal teknikal. Jika RSI oversold + sentiment positif, kemungkinan reversal lebih tinggi. Gunakan sebagai filter tambahan, bukan satu-satunya sinyal.',
     },
   },
 ];

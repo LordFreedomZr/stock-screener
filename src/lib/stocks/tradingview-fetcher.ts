@@ -44,6 +44,15 @@ const SCAN_COLUMNS = [
   'average_volume_30d_calc', // 15: avg volume 30 days
   'Perf.W',              // 16: 1 week momentum (ROC proxy)
   'sector',              // 17: sector
+  // New indicators
+  'BB.upper',            // 18: Bollinger Band upper
+  'BB.middle',           // 19: Bollinger Band middle (SMA20)
+  'BB.lower',            // 20: Bollinger Band lower
+  'Stoch.K',             // 21: Stochastic %K
+  'Stoch.D',             // 22: Stochastic %D
+  'ADX',                 // 23: ADX
+  'ADX+DI',              // 24: +DI
+  'ADX-DI',              // 25: -DI
 ];
 
 export interface TradingViewQuote {
@@ -69,6 +78,8 @@ export interface ScoreConfig {
   rvol_threshold: number;
   weight_momentum: number;
   weight_volume: number;
+  weight_volatility: number;
+  weight_sentiment: number;
 }
 
 export const DEFAULT_SCORE_CONFIG: ScoreConfig = {
@@ -78,8 +89,10 @@ export const DEFAULT_SCORE_CONFIG: ScoreConfig = {
   atr_max_percent: 6.0,
   volume_min_turnover: 500000000,
   rvol_threshold: 2.0,
-  weight_momentum: 50,
-  weight_volume: 50,
+  weight_momentum: 40,
+  weight_volume: 25,
+  weight_volatility: 20,
+  weight_sentiment: 15,
 };
 
 // Weighted scoring using TradingView built-in indicators
@@ -90,8 +103,15 @@ function calculateScore(
   roc: number,
   rvol: number,
   atrPercent: number,
+  bbPercent: number,
+  stochK: number,
+  stochD: number,
+  adx: number,
+  plusDI: number,
+  minusDI: number,
+  sentimentScore: number,
   config: ScoreConfig,
-  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']
 ): { score: number; direction: 'bullish' | 'bearish' } {
   const midRsi = (config.rsi_overbought + config.rsi_oversold) / 2;
 
@@ -140,23 +160,85 @@ function calculateScore(
     else atrScore = 0.2;
   }
 
-  // Weighted scores - only include weights for enabled indicators
-  const mw = config.weight_momentum / 100;
-  const vw = config.weight_volume / 100;
-  const rsiW = enabledIndicators.includes('rsi') ? mw * 0.4 : 0;
-  const macdW = enabledIndicators.includes('macd') ? mw * 0.35 : 0;
-  const rocW = enabledIndicators.includes('roc') ? mw * 0.25 : 0;
-  const rvolW = enabledIndicators.includes('rvol') ? vw * 0.6 : 0;
-  const atrW = enabledIndicators.includes('atr') ? vw * 0.4 : 0;
+  // Bollinger Bands signal (0-1) - only if enabled
+  // %B > 0.8 = near upper (overbought), %B < 0.2 = near lower (oversold)
+  let bbScore = 0;
+  if (enabledIndicators.includes('bb')) {
+    if (bbPercent >= 0.8) bbScore = 0.2; // Near upper = overbought
+    else if (bbPercent <= 0.2) bbScore = 0.9; // Near lower = oversold (buy signal)
+    else if (bbPercent >= 0.4 && bbPercent <= 0.6) bbScore = 0.5; // Middle = neutral
+    else if (bbPercent > 0.6) bbScore = 0.6; // Above middle
+    else bbScore = 0.4; // Below middle
+  }
 
-  const totalW = rsiW + macdW + rocW + rvolW + atrW;
+  // Stochastic signal (0-1) - only if enabled
+  // K > 80 = overbought, K < 20 = oversold, golden cross K > D = bullish
+  let stochScore = 0;
+  if (enabledIndicators.includes('stoch')) {
+    const stochBullish = stochK > stochD;
+    const inOversold = stochK < 20;
+    const inOverbought = stochK > 80;
+    
+    if (inOversold && stochBullish) stochScore = 0.9; // Oversold + golden cross = strong buy
+    else if (inOverbought && !stochBullish) stochScore = 0.1; // Overbought + death cross = strong sell
+    else if (stochBullish) stochScore = 0.7;
+    else stochScore = 0.3;
+  }
+
+  // ADX signal (0-1) - only if enabled
+  // ADX > 25 = strong trend, +DI > -DI = bullish
+  let adxScore = 0;
+  if (enabledIndicators.includes('adx')) {
+    const strongTrend = adx > 25;
+    const bullishTrend = plusDI > minusDI;
+    const trendStrength = Math.min(adx / 50, 1);
+    
+    if (strongTrend && bullishTrend) adxScore = 0.5 + trendStrength * 0.5; // Strong bullish
+    else if (strongTrend && !bullishTrend) adxScore = 0.5 - trendStrength * 0.5; // Strong bearish
+    else adxScore = 0.5; // Weak trend = neutral
+  }
+
+  // Sentiment signal (0-1) - only if enabled
+  let sentimentScoreNorm = 0;
+  if (enabledIndicators.includes('sentiment')) {
+    sentimentScoreNorm = (sentimentScore + 1) / 2; // Convert -1..1 to 0..1
+  }
+
+  // Weighted scores - distribute weights based on enabled indicators
+  const totalWeight = config.weight_momentum + config.weight_volume + config.weight_volatility + config.weight_sentiment;
+  const momentumWeight = config.weight_momentum / totalWeight;
+  const volumeWeight = config.weight_volume / totalWeight;
+  const volatilityWeight = config.weight_volatility / totalWeight;
+  const sentimentWeight = config.weight_sentiment / totalWeight;
+
+  // Momentum sub-indicators (RSI, MACD, ROC, Stoch)
+  const momentumIndicators = ['rsi', 'macd', 'roc', 'stoch'].filter(i => enabledIndicators.includes(i));
+  const momentumCount = momentumIndicators.length || 1;
+  const momentumScore = (rsiScore + macdScore + rocScore + stochScore) / 4;
+
+  // Volume sub-indicators (RVOL)
+  const volumeScore = rvolScore;
+
+  // Volatility sub-indicators (ATR, BB, ADX)
+  const volatilityIndicators = ['atr', 'bb', 'adx'].filter(i => enabledIndicators.includes(i));
+  const volatilityCount = volatilityIndicators.length || 1;
+  const volatilityScore = (atrScore + bbScore + adxScore) / 3;
+
+  // Final weighted score
+  const rawScore = 
+    momentumScore * momentumWeight +
+    volumeScore * volumeWeight +
+    volatilityScore * volatilityWeight +
+    sentimentScoreNorm * sentimentWeight;
+
   // Prevent division by zero - if no indicators enabled, score is 3 (neutral)
-  const score = totalW === 0 
+  const score = totalWeight === 0 
     ? 3 
-    : Math.min(5, Math.max(1, Math.round(((rsiScore * rsiW + macdScore * macdW + rocScore * rocW + rvolScore * rvolW + atrScore * atrW) / totalW) * 5 * 10) / 10));
+    : Math.min(5, Math.max(1, Math.round(rawScore * 5 * 10) / 10));
 
-  const bullish = rsiScore * rsiW + macdScore * macdW + rocScore * rocW;
-  const bearish = (1 - rsiScore) * rsiW + (1 - macdScore) * macdW + (1 - rocScore) * rocW;
+  // Direction based on momentum + trend
+  const bullish = (rsiScore + macdScore + rocScore + stochScore + (plusDI > minusDI ? 1 : 0)) / 5;
+  const bearish = ((1 - rsiScore) + (1 - macdScore) + (1 - rocScore) + (1 - stochScore) + (minusDI > plusDI ? 1 : 0)) / 5;
 
   return { score, direction: bullish > bearish ? 'bullish' : 'bearish' };
 }
@@ -207,7 +289,7 @@ export async function fetchTradingViewScreening(
 
   for (const row of rows) {
     const d = row.d;
-    if (!d || d.length < SCAN_COLUMNS.length) continue;
+    if (!d || d.length < 18) continue;
 
     const ticker = String(d[0] || '').toUpperCase();
     const name = String(d[1] || ticker);
@@ -224,15 +306,36 @@ export async function fetchTradingViewScreening(
     const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
+    // New indicators from TradingView
+    const bbUpper = Number(d[18]) || close;
+    const bbMiddle = Number(d[19]) || close;
+    const bbLower = Number(d[20]) || close;
+    const stochK = d[21] != null ? Number(d[21]) : 50;
+    const stochD = d[22] != null ? Number(d[22]) : 50;
+    const adx = d[23] != null ? Number(d[23]) : 20;
+    const plusDI = d[24] != null ? Number(d[24]) : 25;
+    const minusDI = d[25] != null ? Number(d[25]) : 25;
+
     // Skip illiquid stocks
     if (turnover < config.volume_min_turnover || close <= 0) continue;
 
-    // Calculate derived metrics (only things TradingView doesn't provide)
+    // Calculate derived metrics
     const rvol = avgVol10d > 0 ? volume / avgVol10d : 1.0;
     const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
+    
+    // Bollinger Bands %B calculation
+    const bbRange = bbUpper - bbLower;
+    const bbPercent = bbRange > 0 ? (close - bbLower) / bbRange : 0.5;
+
+    // Sentiment placeholder (will be updated if sentiment enabled)
+    const sentimentScore = 0;
 
     // Score using TradingView built-in indicators
-    const { score, direction } = calculateScore(rsi, macd, macdSignal, roc, rvol, atrPercent, config, enabledIndicators);
+    const { score, direction } = calculateScore(
+      rsi, macd, macdSignal, roc, rvol, atrPercent,
+      bbPercent, stochK, stochD, adx, plusDI, minusDI,
+      sentimentScore, config, enabledIndicators
+    );
 
     // Volume spike
     const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;
@@ -263,6 +366,17 @@ export async function fetchTradingViewScreening(
       rvol: Math.round(rvol * 100) / 100,
       obv: volume,
       atr_percent: Math.round(atrPercent * 100) / 100,
+      bb_upper: Math.round(bbUpper * 100) / 100,
+      bb_middle: Math.round(bbMiddle * 100) / 100,
+      bb_lower: Math.round(bbLower * 100) / 100,
+      bb_percent: Math.round(bbPercent * 100) / 100,
+      stoch_k: Math.round(stochK * 10) / 10,
+      stoch_d: Math.round(stochD * 10) / 10,
+      adx: Math.round(adx * 10) / 10,
+      plus_di: Math.round(plusDI * 10) / 10,
+      minus_di: Math.round(minusDI * 10) / 10,
+      sentiment_score: sentimentScore,
+      sentiment_label: 'neutral',
       max_profit_percent: maxProfitPercent,
       max_profit_nominal: maxProfitNominal,
       max_loss_percent: maxLossPercent,
@@ -289,7 +403,7 @@ export async function fetchTradingViewScreening(
 export async function fetchSingleStock(
   ticker: string,
   config: ScoreConfig = DEFAULT_SCORE_CONFIG,
-  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']
 ): Promise<ScreeningResult | null> {
   // Try with IDX: prefix first, then without
   for (const prefix of ['IDX:', '']) {
@@ -317,7 +431,7 @@ export async function fetchSingleStock(
     if (!rows.length) continue;
 
     const d = rows[0].d;
-    if (!d || d.length < SCAN_COLUMNS.length) continue;
+    if (!d || d.length < 18) continue;
 
     const name = String(d[1] || ticker.toUpperCase());
     const close = Number(d[2]) || 0;
@@ -333,11 +447,29 @@ export async function fetchSingleStock(
     const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
+    // New indicators
+    const bbUpper = Number(d[18]) || close;
+    const bbMiddle = Number(d[19]) || close;
+    const bbLower = Number(d[20]) || close;
+    const stochK = d[21] != null ? Number(d[21]) : 50;
+    const stochD = d[22] != null ? Number(d[22]) : 50;
+    const adx = d[23] != null ? Number(d[23]) : 20;
+    const plusDI = d[24] != null ? Number(d[24]) : 25;
+    const minusDI = d[25] != null ? Number(d[25]) : 25;
+
     if (close <= 0) continue;
 
     const rvol = avgVol10d > 0 ? volume / avgVol10d : 1.0;
     const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
-    const { score, direction } = calculateScore(rsi, macd, macdSignal, roc, rvol, atrPercent, config, enabledIndicators);
+    const bbRange = bbUpper - bbLower;
+    const bbPercent = bbRange > 0 ? (close - bbLower) / bbRange : 0.5;
+    const sentimentScore = 0;
+
+    const { score, direction } = calculateScore(
+      rsi, macd, macdSignal, roc, rvol, atrPercent,
+      bbPercent, stochK, stochD, adx, plusDI, minusDI,
+      sentimentScore, config, enabledIndicators
+    );
 
     const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;
     const spikeVs30d = avgVol30d > 0 ? Math.round(((volume - avgVol30d) / avgVol30d) * 100) : 0;
@@ -365,6 +497,17 @@ export async function fetchSingleStock(
       rvol: Math.round(rvol * 100) / 100,
       obv: volume,
       atr_percent: Math.round(atrPercent * 100) / 100,
+      bb_upper: Math.round(bbUpper * 100) / 100,
+      bb_middle: Math.round(bbMiddle * 100) / 100,
+      bb_lower: Math.round(bbLower * 100) / 100,
+      bb_percent: Math.round(bbPercent * 100) / 100,
+      stoch_k: Math.round(stochK * 10) / 10,
+      stoch_d: Math.round(stochD * 10) / 10,
+      adx: Math.round(adx * 10) / 10,
+      plus_di: Math.round(plusDI * 10) / 10,
+      minus_di: Math.round(minusDI * 10) / 10,
+      sentiment_score: sentimentScore,
+      sentiment_label: 'neutral',
       max_profit_percent: maxProfitPercent,
       max_profit_nominal: maxProfitNominal,
       max_loss_percent: maxLossPercent,

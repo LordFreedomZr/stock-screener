@@ -544,6 +544,64 @@ export default function StockDetailPage() {
             <p className="text-xs text-gray-500">Volatilitas</p>
           </CardContent>
         </Card>
+        {result.stoch_k !== undefined && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="w-4 h-4 text-pink-400" />
+                <span className="text-sm text-gray-500">Stochastic</span>
+              </div>
+              <p className="text-xl font-bold text-white">{result.stoch_k.toFixed(1)}</p>
+              <p className="text-xs text-gray-500">
+                D: {result.stoch_d?.toFixed(1) ?? '-'} | {result.stoch_k < 20 ? 'Oversold' : result.stoch_k > 80 ? 'Overbought' : 'Netral'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {result.bb_percent !== undefined && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="w-4 h-4 text-indigo-400" />
+                <span className="text-sm text-gray-500">Bollinger %B</span>
+              </div>
+              <p className="text-xl font-bold text-white">{(result.bb_percent * 100).toFixed(0)}%</p>
+              <p className="text-xs text-gray-500">
+                {result.bb_percent < 0.2 ? 'Dekat Lower' : result.bb_percent > 0.8 ? 'Dekat Upper' : 'Netral'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {result.adx !== undefined && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-orange-400" />
+                <span className="text-sm text-gray-500">ADX</span>
+              </div>
+              <p className="text-xl font-bold text-white">{result.adx.toFixed(1)}</p>
+              <p className="text-xs text-gray-500">
+                {result.adx > 25 ? (result.plus_di && result.minus_di && result.plus_di > result.minus_di ? 'Tren Naik Kuat' : 'Tren Turun Kuat') : 'Tren Lemah'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {result.sentiment_score !== undefined && result.sentiment_score !== 0 && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Newspaper className="w-4 h-4 text-teal-400" />
+                <span className="text-sm text-gray-500">Sentimen</span>
+              </div>
+              <p className="text-xl font-bold text-white">
+                {result.sentiment_label === 'positive' ? 'Positif' : result.sentiment_label === 'negative' ? 'Negatif' : 'Netral'}
+              </p>
+              <p className="text-xs text-gray-500">
+                Score: {result.sentiment_score.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        )}
         <Card className="border-gray-800/50 bg-gray-900/50">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">

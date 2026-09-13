@@ -34,6 +34,19 @@ export interface ScreeningResult {
   rvol: number;
   obv: number;
   atr_percent: number;
+  // New indicators
+  bb_upper?: number;
+  bb_middle?: number;
+  bb_lower?: number;
+  bb_percent?: number; // %B position
+  stoch_k?: number;
+  stoch_d?: number;
+  adx?: number;
+  plus_di?: number;
+  minus_di?: number;
+  // Sentiment
+  sentiment_score?: number; // -1 to 1
+  sentiment_label?: 'positive' | 'negative' | 'neutral';
   turnover_avg: number;
   price: number;
   price_change_percent: number;

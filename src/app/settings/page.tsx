@@ -21,7 +21,7 @@ const defaultConfig: ThresholdConfig = {
   weight_volatility: 20,
   weight_sentiment: 15,
   max_display: 18,
-  enabled_indicators: ['rsi', 'macd', 'roc', 'rvol', 'atr'],
+  enabled_indicators: ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'],
   created_at: new Date().toISOString(),
 };
 
@@ -116,7 +116,7 @@ const defaultIndicators: IndicatorDef[] = [
     },
   },
   {
-    id: 'perf',
+    id: 'roc',
     name: 'Perf.W',
     description: 'Weekly performance / ROC',
     category: 'momentum',
@@ -227,6 +227,8 @@ export default function SettingsPage() {
           rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
           weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
           weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
+          weight_volatility: data.weight_volatility ?? defaultConfig.weight_volatility,
+          weight_sentiment: data.weight_sentiment ?? defaultConfig.weight_sentiment,
           enabled_indicators: data.enabled_indicators ?? defaultConfig.enabled_indicators,
           created_at: data.created_at || new Date().toISOString(),
         }));
@@ -457,7 +459,9 @@ export default function SettingsPage() {
                         ? 'bg-blue-500/10 text-blue-400'
                         : ind.category === 'volume'
                         ? 'bg-emerald-500/10 text-emerald-400'
-                        : 'bg-yellow-500/10 text-yellow-400'
+                        : ind.category === 'volatility'
+                        ? 'bg-purple-500/10 text-purple-400'
+                        : 'bg-teal-500/10 text-teal-400'
                     }`}
                   >
                     {ind.category}

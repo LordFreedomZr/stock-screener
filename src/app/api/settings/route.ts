@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       weight_volume: validateNumber(body.weight_volume, 0, 100) ?? 25,
       weight_volatility: validateNumber(body.weight_volatility, 0, 100) ?? 20,
       weight_sentiment: validateNumber(body.weight_sentiment, 0, 100) ?? 15,
+      enabled_indicators: Array.isArray(body.enabled_indicators) ? body.enabled_indicators : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'],
     };
 
     // Upsert config

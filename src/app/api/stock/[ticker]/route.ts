@@ -14,7 +14,7 @@ export async function GET(
     const enabledParam = searchParams.get('enabled');
     const enabledIndicators = enabledParam
       ? enabledParam.split(',').filter(Boolean)
-      : ['rsi', 'macd', 'roc', 'rvol', 'atr'];
+      : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
 
     const stock = await fetchSingleStock(ticker, DEFAULT_SCORE_CONFIG, enabledIndicators);
 

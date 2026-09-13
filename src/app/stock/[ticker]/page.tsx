@@ -107,7 +107,7 @@ export default function StockDetailPage() {
     try {
       // Get enabled indicators from localStorage
       const savedEnabled = localStorage.getItem('enabled_indicators');
-      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr'];
+      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
       
       const params = new URLSearchParams();
       if (enabledIndicators.length > 0) {

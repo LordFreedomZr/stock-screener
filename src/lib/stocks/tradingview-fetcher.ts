@@ -250,7 +250,7 @@ function calculateScore(
 export async function fetchTradingViewScreening(
   config: ScoreConfig = DEFAULT_SCORE_CONFIG,
   limit: number = 150,
-  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']
 ): Promise<ScreeningResult[]> {
   // Check cache first
   const cacheKey = `screening-${limit}-${enabledIndicators.join(',')}`;

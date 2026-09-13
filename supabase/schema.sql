@@ -86,21 +86,19 @@ CREATE TABLE IF NOT EXISTS watchlist_evaluations (
 -- Threshold configs table
 CREATE TABLE IF NOT EXISTS threshold_configs (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   version VARCHAR(20) NOT NULL,
-  rsi_period INTEGER DEFAULT 14,
   rsi_oversold INTEGER DEFAULT 30,
   rsi_overbought INTEGER DEFAULT 70,
-  macd_fast INTEGER DEFAULT 12,
-  macd_slow INTEGER DEFAULT 26,
-  macd_signal INTEGER DEFAULT 9,
-  roc_period INTEGER DEFAULT 12,
-  atr_period INTEGER DEFAULT 14,
   atr_min_percent DECIMAL(10, 4) DEFAULT 1.5,
   atr_max_percent DECIMAL(10, 4) DEFAULT 6.0,
   volume_min_turnover DECIMAL(20, 4) DEFAULT 1000000000,
   rvol_threshold DECIMAL(10, 4) DEFAULT 2.0,
-  weight_momentum INTEGER DEFAULT 50,
-  weight_volume INTEGER DEFAULT 50,
+  weight_momentum INTEGER DEFAULT 40,
+  weight_volume INTEGER DEFAULT 25,
+  weight_volatility INTEGER DEFAULT 20,
+  weight_sentiment INTEGER DEFAULT 15,
+  enabled_indicators JSONB DEFAULT '["rsi","macd","roc","rvol","atr","bb","stoch","adx","sentiment"]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

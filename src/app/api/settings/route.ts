@@ -93,12 +93,12 @@ export async function POST(request: NextRequest) {
       result = data;
     }
 
+    logActivity({ user_id: userId, action: 'settings_update', detail: 'Update indikator & threshold' });
+
     return NextResponse.json({
       success: true,
       data: { ...result, enabled_indicators: body.enabled_indicators || [] },
     });
-
-    logActivity({ user_id: userId, action: 'settings_update', detail: 'Update indikator & threshold' });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

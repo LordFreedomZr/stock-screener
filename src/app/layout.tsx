@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navigation } from "@/components/navigation";
 import { UserBadge } from "@/components/user-badge";
 import { AutoLogoutProvider } from "@/components/auto-logout-provider";
+import { AnalyticsProvider } from "@/components/analytics-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="id" className="dark">
       <body className={`${inter.className} bg-gray-950 text-white antialiased`}>
         <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+          <AnalyticsProvider />
           <header className="sticky top-0 z-40 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/50">
             <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
               <div className="flex items-center gap-2">

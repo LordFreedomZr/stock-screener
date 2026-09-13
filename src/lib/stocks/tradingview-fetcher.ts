@@ -2,6 +2,28 @@ import { ScreeningResult } from '@/types';
 
 const TRADINGVIEW_SCANNER_URL = 'https://scanner.tradingview.com/indonesia/scan';
 
+// In-memory cache for TradingView data (5 minute TTL)
+const cache = new Map<string, { data: ScreeningResult[]; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData(key: string): ScreeningResult[] | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCachedData(key: string, data: ScreeningResult[]): void {
+  // Limit cache size to prevent memory issues
+  if (cache.size > 10) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
 // TradingView built-in indicator columns - no manual calculation needed
 const SCAN_COLUMNS = [
   'name',                // 0: ticker
@@ -148,6 +170,13 @@ export async function fetchTradingViewScreening(
   limit: number = 150,
   enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr']
 ): Promise<ScreeningResult[]> {
+  // Check cache first
+  const cacheKey = `screening-${limit}-${enabledIndicators.join(',')}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const payload = {
     filter: [
       { left: 'market_cap_basic', operation: 'nempty' },
@@ -247,6 +276,9 @@ export async function fetchTradingViewScreening(
       },
     });
   }
+
+  // Cache the results
+  setCachedData(cacheKey, results);
 
   return results;
 }

@@ -16,8 +16,10 @@ const defaultConfig: ThresholdConfig = {
   atr_max_percent: 6.0,
   volume_min_turnover: 500000000,
   rvol_threshold: 2.0,
-  weight_momentum: 50,
-  weight_volume: 50,
+  weight_momentum: 40,
+  weight_volume: 25,
+  weight_volatility: 20,
+  weight_sentiment: 15,
   max_display: 18,
   enabled_indicators: ['rsi', 'macd', 'roc', 'rvol', 'atr'],
   created_at: new Date().toISOString(),
@@ -260,6 +262,8 @@ export default function SettingsPage() {
           rvol_threshold: config.rvol_threshold,
           weight_momentum: config.weight_momentum,
           weight_volume: config.weight_volume,
+          weight_volatility: config.weight_volatility,
+          weight_sentiment: config.weight_sentiment,
           enabled_indicators: indicators.filter(i => i.enabled).map(i => i.id),
         }),
       });
@@ -293,14 +297,50 @@ export default function SettingsPage() {
   const updateConfig = (key: keyof ThresholdConfig, value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
 
-    if (key === 'weight_momentum' || key === 'weight_volume') {
+    if (key === 'weight_momentum' || key === 'weight_volume' || key === 'weight_volatility' || key === 'weight_sentiment') {
       const clamped = Math.min(100, Math.max(0, numValue));
-      setConfig((prev) => ({
-        ...prev,
-        [key]: clamped,
-        ...(key === 'weight_momentum' ? { weight_volume: 100 - clamped } : {}),
-        ...(key === 'weight_volume' ? { weight_momentum: 100 - clamped } : {}),
-      }));
+      
+      setConfig((prev) => {
+        const oldTotal = prev.weight_momentum + prev.weight_volume + prev.weight_volatility + prev.weight_sentiment;
+        const oldValue = prev[key] || 0;
+        const newValue = clamped;
+        const diff = newValue - oldValue;
+        
+        // Distribute the difference proportionally to other weights
+        const otherKeys = ['weight_momentum', 'weight_volume', 'weight_volatility', 'weight_sentiment'].filter(k => k !== key) as (keyof ThresholdConfig)[];
+        const otherTotal = otherKeys.reduce((sum, k) => sum + (prev[k] as number), 0);
+        
+        const newWeights: Record<string, number> = { [key]: newValue };
+        
+        if (otherTotal > 0) {
+          for (const k of otherKeys) {
+            const oldWeight = prev[k] as number;
+            const proportion = oldWeight / otherTotal;
+            newWeights[k] = Math.max(0, Math.round(oldWeight - diff * proportion));
+          }
+        } else {
+          // If all others are 0, distribute equally
+          const each = Math.floor((100 - newValue) / otherKeys.length);
+          for (const k of otherKeys) {
+            newWeights[k] = each;
+          }
+        }
+        
+        // Ensure total = 100
+        const total = Object.values(newWeights).reduce((a, b) => a + b, 0);
+        if (total !== 100) {
+          const adjustKey = otherKeys[0];
+          newWeights[adjustKey] = (newWeights[adjustKey] || 0) + (100 - total);
+        }
+        
+        return {
+          ...prev,
+          weight_momentum: newWeights.weight_momentum ?? prev.weight_momentum,
+          weight_volume: newWeights.weight_volume ?? prev.weight_volume,
+          weight_volatility: newWeights.weight_volatility ?? prev.weight_volatility,
+          weight_sentiment: newWeights.weight_sentiment ?? prev.weight_sentiment,
+        };
+      });
     } else if (key.includes('percent') || key.includes('threshold')) {
       setConfig((prev) => ({ ...prev, [key]: Math.max(0, numValue) }));
     } else {
@@ -477,9 +517,10 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <p className="text-xs text-gray-500">Total bobot = 100%. Bobot otomatis disesuaikan jika salah satu diubah.</p>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-400">Momentum</label>
+                <label className="text-sm text-gray-400">Momentum (RSI, MACD, ROC, Stoch)</label>
                 <span className="text-sm text-white">{config.weight_momentum}%</span>
               </div>
               <input
@@ -493,7 +534,7 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-400">Volume</label>
+                <label className="text-sm text-gray-400">Volume (RVOL)</label>
                 <span className="text-sm text-white">{config.weight_volume}%</span>
               </div>
               <input
@@ -502,6 +543,34 @@ export default function SettingsPage() {
                 max="100"
                 value={config.weight_volume}
                 onChange={(e) => updateConfig('weight_volume', parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Volatilitas (ATR, BB, ADX)</label>
+                <span className="text-sm text-white">{config.weight_volatility}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={config.weight_volatility}
+                onChange={(e) => updateConfig('weight_volatility', parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Sentimen Berita</label>
+                <span className="text-sm text-white">{config.weight_sentiment}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={config.weight_sentiment}
+                onChange={(e) => updateConfig('weight_sentiment', parseInt(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
             </div>

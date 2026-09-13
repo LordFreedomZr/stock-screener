@@ -62,8 +62,10 @@ export async function POST(request: NextRequest) {
       atr_max_percent: validateNumber(body.atr_max_percent, 5, 50) ?? 10,
       volume_min_turnover: validateNumber(body.volume_min_turnover, 0, 1000000000) ?? 100000000,
       rvol_threshold: validateNumber(body.rvol_threshold, 0.5, 5) ?? 1.5,
-      weight_momentum: validateNumber(body.weight_momentum, 0, 100) ?? 60,
-      weight_volume: validateNumber(body.weight_volume, 0, 100) ?? 40,
+      weight_momentum: validateNumber(body.weight_momentum, 0, 100) ?? 40,
+      weight_volume: validateNumber(body.weight_volume, 0, 100) ?? 25,
+      weight_volatility: validateNumber(body.weight_volatility, 0, 100) ?? 20,
+      weight_sentiment: validateNumber(body.weight_sentiment, 0, 100) ?? 15,
     };
 
     // Upsert config

@@ -17,17 +17,25 @@ type SpikeTab = 'yesterday' | '3d' | '5d';
 
 export default function DashboardPage() {
   const [results, setResults] = useState<ScreeningResult[]>([]);
-  const [filters, setFilters] = useState<FilterState>({
-    searchQuery: '',
-    sector: '',
-    sortBy: 'score',
-    priceMin: null,
-    priceMax: null,
-    volumeMin: null,
-    maxLossPercent: null,
-    maxLossNominal: null,
-    maxProfitPercent: null,
-    maxProfitNominal: null,
+  const [filters, setFilters] = useState<FilterState>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('dashboard_filters');
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return {
+      searchQuery: '',
+      sector: '',
+      sortBy: 'score',
+      priceMin: null,
+      priceMax: null,
+      volumeMin: null,
+      maxLossPercent: null,
+      maxLossNominal: null,
+      maxProfitPercent: null,
+      maxProfitNominal: null,
+    };
   });
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -101,6 +109,11 @@ export default function DashboardPage() {
     setDensity(next);
     localStorage.setItem('card_density', next);
   };
+
+  // Save filters to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_filters', JSON.stringify(filters));
+  }, [filters]);
 
   const filteredResults = useMemo(() => {
     const filtered = results.filter((result) => {

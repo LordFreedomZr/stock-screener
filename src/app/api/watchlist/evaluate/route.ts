@@ -18,10 +18,11 @@ export async function GET(request: NextRequest) {
       summary: result.summary,
       evaluatedAt: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to evaluate watchlist';
     console.error('Error in evaluate watchlist GET:', error);
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to evaluate watchlist' },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -48,10 +49,11 @@ export async function POST(request: NextRequest) {
       summary: result.summary,
       evaluatedAt: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to evaluate watchlist';
     console.error('Error in evaluate watchlist POST:', error);
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to evaluate watchlist' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

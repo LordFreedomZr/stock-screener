@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,22 +9,20 @@ import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { ADMIN_EMAILS } from '@/lib/config';
 
 function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParamsError = searchParams.get('error');
+  const initialError = searchParamsError === 'expired'
+    ? 'Akun Anda telah kedaluwarsa. Silakan hubungi admin untuk memperpanjang.'
+    : searchParamsError === 'inactive'
+    ? 'Anda telah logout karena tidak aktif selama 10 menit. Silakan login kembali.'
+    : null;
 
-  useEffect(() => {
-    const errorType = searchParams.get('error');
-    if (errorType === 'expired') {
-      setError('Akun Anda telah kedaluwarsa. Silakan hubungi admin untuk memperpanjang.');
-    } else if (errorType === 'inactive') {
-      setError('Anda telah logout karena tidak aktif selama 10 menit. Silakan login kembali.');
-    }
-  }, [searchParams]);
+  const [error, setError] = useState<string | null>(initialError);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

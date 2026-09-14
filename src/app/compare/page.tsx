@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScreeningResult } from '@/types';
 import { formatCurrency, formatPercent, getScoreColor, getDirectionColor } from '@/lib/utils';
-import { Plus, X, BarChart3, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Plus, X, BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 
 export default function ComparePage() {
   const [tickers, setTickers] = useState<string[]>(['', '']);

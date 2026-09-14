@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { StockChart } from '@/components/charts/stock-chart';
 import { RSIChart } from '@/components/charts/rsi-chart';
@@ -96,74 +96,126 @@ export default function StockDetailPage() {
     }));
   }, [priceData]);
 
-  const fetchData = useCallback(async () => {
-    // Cancel any previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
+  useEffect(() => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
-    setFetching(true);
-    try {
-      // Get enabled indicators from localStorage
-      const savedEnabled = localStorage.getItem('enabled_indicators');
-      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
-      
-      const params = new URLSearchParams();
-      if (enabledIndicators.length > 0) {
-        params.set('enabled', enabledIndicators.join(','));
-      }
-
-      // Fetch screening data for this ticker
-      let found = false;
-      const screeningResponse = await fetch(`/api/screening?${params.toString()}`, {
-        signal: abortControllerRef.current.signal,
-      });
-      const screeningData = await screeningResponse.json();
-      
-      if (screeningData.success && screeningData.data) {
-        const stockData = screeningData.data.find((s: any) => s.ticker === ticker);
-        if (stockData) {
-          setResult(stockData as ScreeningResult);
-          found = true;
+    const load = async () => {
+      setFetching(true);
+      try {
+        const savedEnabled = localStorage.getItem('enabled_indicators');
+        const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
+        
+        const params = new URLSearchParams();
+        if (enabledIndicators.length > 0) {
+          params.set('enabled', enabledIndicators.join(','));
         }
-      }
 
-      // If not found in top 150, fetch directly
-      if (!found) {
-        const stockResponse = await fetch(`/api/stock/${encodeURIComponent(ticker)}?${params.toString()}`, {
-          signal: abortControllerRef.current.signal,
+        let found = false;
+        const screeningResponse = await fetch(`/api/screening?${params.toString()}`, {
+          signal: controller.signal,
         });
-        const stockJson = await stockResponse.json();
-        if (stockJson.success && stockJson.data) {
-          setResult(stockJson.data as ScreeningResult);
+        const screeningData = await screeningResponse.json();
+        
+        if (screeningData.success && screeningData.data) {
+          const stockData = screeningData.data.find((s: ScreeningResult) => s.ticker === ticker);
+          if (stockData) {
+            setResult(stockData);
+            found = true;
+          }
         }
-      }
 
-      // Fetch price history for chart
-      const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}?range=${timeframe.range}&interval=${timeframe.interval}`, {
-        signal: abortControllerRef.current.signal,
-      });
-      const historyData = await historyResponse.json();
-      
-      if (historyData.success && historyData.data) {
-        setPriceData(historyData.data as PriceSnapshot[]);
+        if (!found) {
+          const stockResponse = await fetch(`/api/stock/${encodeURIComponent(ticker)}?${params.toString()}`, {
+            signal: controller.signal,
+          });
+          const stockJson = await stockResponse.json();
+          if (stockJson.success && stockJson.data) {
+            setResult(stockJson.data as ScreeningResult);
+          }
+        }
+
+        const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}?range=${timeframe.range}&interval=${timeframe.interval}`, {
+          signal: controller.signal,
+        });
+        const historyData = await historyResponse.json();
+        
+        if (historyData.success && historyData.data) {
+          setPriceData(historyData.data as PriceSnapshot[]);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Error fetching stock data:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
       }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
+    };
+
+    load();
+    return () => controller.abort();
+  }, [ticker, timeframe.range, timeframe.interval]);
+
+  const handleRefresh = () => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const load = async () => {
+      setFetching(true);
+      try {
+        const savedEnabled = localStorage.getItem('enabled_indicators');
+        const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
+        
+        const params = new URLSearchParams();
+        if (enabledIndicators.length > 0) {
+          params.set('enabled', enabledIndicators.join(','));
+        }
+
+        let found = false;
+        const screeningResponse = await fetch(`/api/screening?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const screeningData = await screeningResponse.json();
+        
+        if (screeningData.success && screeningData.data) {
+          const stockData = screeningData.data.find((s: ScreeningResult) => s.ticker === ticker);
+          if (stockData) {
+            setResult(stockData);
+            found = true;
+          }
+        }
+
+        if (!found) {
+          const stockResponse = await fetch(`/api/stock/${encodeURIComponent(ticker)}?${params.toString()}`, {
+            signal: controller.signal,
+          });
+          const stockJson = await stockResponse.json();
+          if (stockJson.success && stockJson.data) {
+            setResult(stockJson.data as ScreeningResult);
+          }
+        }
+
+        const historyResponse = await fetch(`/api/history/${encodeURIComponent(ticker)}?range=${timeframe.range}&interval=${timeframe.interval}`, {
+          signal: controller.signal,
+        });
+        const historyData = await historyResponse.json();
+        
+        if (historyData.success && historyData.data) {
+          setPriceData(historyData.data as PriceSnapshot[]);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Error fetching stock data:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
       }
-      console.error('Error fetching stock data:', error);
-    } finally {
-      setLoading(false);
-      setFetching(false);
-    }
-  }, [ticker]);
+    };
+
+    load();
+  };
 
   useEffect(() => {
-    fetchData();
-    
-    // Check if stock is in watchlist
     const checkWatchlist = async () => {
       try {
         const response = await fetch('/api/watchlist');
@@ -177,7 +229,6 @@ export default function StockDetailPage() {
       }
     };
 
-    // Fetch news
     const fetchNews = async () => {
       setNewsLoading(true);
       try {
@@ -190,7 +241,6 @@ export default function StockDetailPage() {
       setNewsLoading(false);
     };
 
-    // Fetch multi-timeframe data
     const fetchMTF = async () => {
       setMtfLoading(true);
       try {
@@ -203,7 +253,7 @@ export default function StockDetailPage() {
           { label: '1Y', range: '2y', interval: '1wk' },
         ];
 
-        const results: Record<string, { rsi: number; macd: number; macd_signal: number; roc: number; rvol: number; direction: string }> = {};
+        const mtfResults: Record<string, { rsi: number; macd: number; macd_signal: number; roc: number; rvol: number; direction: string }> = {};
 
         for (const tf of timeframes) {
           try {
@@ -213,7 +263,6 @@ export default function StockDetailPage() {
               const closes = data.data.map((d: { close: number }) => d.close);
               const volumes = data.data.map((d: { volume: number }) => d.volume);
 
-              // RSI
               const period = 14;
               let gains = 0, losses = 0;
               for (let i = closes.length - period; i < closes.length; i++) {
@@ -226,35 +275,35 @@ export default function StockDetailPage() {
               const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
               const rsi = 100 - (100 / (1 + rs));
 
-              // MACD
-              const k12 = 2 / 13, k26 = 2 / 27;
-              let ema12 = closes[0], ema26 = closes[0];
+              const k = 2 / (13);
+              const ema12 = [closes[0]];
+              const ema26 = [closes[0]];
               for (let i = 1; i < closes.length; i++) {
-                ema12 = closes[i] * k12 + ema12 * (1 - k12);
-                ema26 = closes[i] * k26 + ema26 * (1 - k26);
+                ema12.push(closes[i] * k + ema12[i - 1] * (1 - k));
+                ema26.push(closes[i] * (2 / 27) + ema26[i - 1] * (1 - 2 / 27));
               }
-              const macdLine = ema12 - ema26;
-              const signalLine = macdLine * (2 / 10); // approx
+              const macdLine = ema12.map((v, i) => v - ema26[i]);
+              const signalLine = [macdLine[0]];
+              for (let i = 1; i < macdLine.length; i++) {
+                signalLine.push(macdLine[i] * (2 / 10) + signalLine[i - 1] * (1 - 2 / 10));
+              }
+              const macd = macdLine[macdLine.length - 1];
+              const signal = signalLine[signalLine.length - 1];
 
-              // ROC (10-period)
-              const roc = closes.length > 10
-                ? ((closes[closes.length - 1] - closes[closes.length - 11]) / closes[closes.length - 11]) * 100
-                : 0;
+              const weekAgo = closes[Math.max(0, closes.length - 5)];
+              const roc = weekAgo > 0 ? ((closes[closes.length - 1] - weekAgo) / weekAgo) * 100 : 0;
 
-              // RVOL
-              const avgVol = volumes.slice(-20).reduce((a: number, b: number) => a + b, 0) / 20;
+              const avgVol = volumes.slice(-10).reduce((a: number, b: number) => a + b, 0) / 10;
               const rvol = avgVol > 0 ? volumes[volumes.length - 1] / avgVol : 1;
 
-              // Direction
-              const momentumScore = (rsi > 50 ? 0.5 : -0.5) + (macdLine > signalLine ? 0.3 : -0.3) + (roc > 0 ? 0.2 : -0.2);
-              const direction = momentumScore > 0 ? 'bullish' : 'bearish';
+              const momentumScore = (rsi > 50 ? 0.5 : -0.5) + (macd > signal ? 0.3 : -0.3) + (roc > 0 ? 0.2 : -0.2);
 
-              results[tf.label] = { rsi, macd: macdLine, macd_signal: signalLine, roc, rvol, direction };
+              mtfResults[tf.label] = { rsi, macd, macd_signal: signal, roc, rvol, direction: momentumScore > 0 ? 'bullish' : 'bearish' };
             }
           } catch {}
         }
 
-        setMtfData(results);
+        setMtfData(mtfResults);
       } catch {}
       setMtfLoading(false);
     };
@@ -262,19 +311,13 @@ export default function StockDetailPage() {
     checkWatchlist();
     fetchNews();
     fetchMTF();
-
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [fetchData, ticker, timeframe]);
+  }, [ticker]);
 
   const toggleWatchlist = async () => {
     setWatchlistLoading(true);
     try {
       const action = isInWatchlist ? 'stop' : 'add';
-      const payload: any = { ticker, action };
+      const payload: Record<string, unknown> = { ticker, action };
       if (action === 'add' && result) {
         payload.price = result.price;
         payload.score = result.score;
@@ -366,7 +409,7 @@ export default function StockDetailPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchData}
+            onClick={handleRefresh}
             disabled={fetching}
           >
             <RefreshCw className={`w-4 h-4 ${fetching ? 'animate-spin' : ''}`} />

@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         message: `${cleanTicker} berhasil ditambahkan ke watchlist.`,
       });
     } else {
-      const stopped = await stopWatchlistItem(cleanTicker, userId);
+      await stopWatchlistItem(cleanTicker, userId);
 
       logActivity({ user_id: userId, action: 'watchlist_stop', detail: `${cleanTicker} dihentikan dari pemantauan` });
 

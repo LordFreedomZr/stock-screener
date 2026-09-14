@@ -84,13 +84,11 @@ export async function getWatchlistItems(userId?: string | null, groupName?: stri
 
   // Filter by group if provided (handle missing column gracefully)
   if (groupName && groupName !== 'All') {
-    // Try to filter by group_name - will fail silently if column doesn't exist
     const testQuery = query.eq('group_name', groupName);
-    const { data: testData, error: testError } = await testQuery.limit(0);
+    const { error: testError } = await testQuery.limit(0);
     if (!testError) {
       query = testQuery;
     }
-    // If column doesn't exist, ignore the group filter
   }
 
   const { data: items, error: itemsError } = await query;

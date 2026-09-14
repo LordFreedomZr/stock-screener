@@ -44,12 +44,46 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<{ id: string; user_email: string; action: string; detail: string; created_at: string }[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users');
+        if (res.status === 403 || res.status === 401) {
+          setAccessDenied(true);
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.success) {
+          setUsers(data.data);
+        } else {
+          setAccessDenied(true);
+        }
+      } catch {
+        setAccessDenied(true);
+      }
+      setLoading(false);
+    };
+
+    const loadLogs = async () => {
+      setLogsLoading(true);
+      try {
+        const res = await fetch('/api/admin/activity');
+        const data = await res.json();
+        if (data.success) setLogs(data.data);
+      } catch {}
+      setLogsLoading(false);
+    };
+
+    loadUsers();
+    loadLogs();
+  }, []);
+
+  const refreshUsers = async () => {
     try {
       const res = await fetch('/api/admin/users');
       if (res.status === 403 || res.status === 401) {
         setAccessDenied(true);
-        setLoading(false);
         return;
       }
       const data = await res.json();
@@ -61,12 +95,9 @@ export default function AdminPage() {
     } catch {
       setAccessDenied(true);
     }
-    setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); fetchLogs(); }, []);
-
-  const fetchLogs = async () => {
+  const refreshLogs = async () => {
     setLogsLoading(true);
     try {
       const res = await fetch('/api/admin/activity');
@@ -95,7 +126,7 @@ export default function AdminPage() {
         setNewEmail('');
         setNewPassword('');
         setShowAdd(false);
-        fetchUsers();
+        refreshUsers();
       } else {
         showMessage('error', data.error);
       }
@@ -115,7 +146,7 @@ export default function AdminPage() {
       if (data.success) {
         showMessage('success', data.message);
         setEditUser(null);
-        fetchUsers();
+        refreshUsers();
       } else {
         showMessage('error', data.error);
       }
@@ -135,7 +166,7 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.success) {
         showMessage('success', data.message);
-        fetchUsers();
+        refreshUsers();
       } else {
         showMessage('error', data.error);
       }
@@ -302,7 +333,7 @@ export default function AdminPage() {
           <CardTitle className="text-sm flex items-center gap-2">
             <Activity className="w-4 h-4 text-cyan-400" />
             Log Aktivitas
-            <button onClick={fetchLogs} className="ml-auto text-xs text-gray-500 hover:text-white">
+            <button onClick={refreshLogs} className="ml-auto text-xs text-gray-500 hover:text-white">
               Refresh
             </button>
           </CardTitle>

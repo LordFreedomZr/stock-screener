@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,37 +16,52 @@ export default function AccuracyPage() {
   const [fetching, setFetching] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchStats = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setFetching(true);
-    try {
-      const { data, error } = await supabase
-        .from('accuracy_stats')
-        .select('*')
-        .order('hit_rate', { ascending: false });
-
-      if (error) throw error;
-      setStats(data as AccuracyStats[]);
-    } catch (error) {
-      console.error('Error fetching accuracy stats:', error);
-    } finally {
-      setLoading(false);
-      setFetching(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchStats();
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const load = async () => {
+      setFetching(true);
+      try {
+        const { data, error } = await supabase
+          .from('accuracy_stats')
+          .select('*')
+          .order('hit_rate', { ascending: false });
+
+        if (error) throw error;
+        setStats(data as AccuracyStats[]);
+      } catch (error) {
+        console.error('Error fetching accuracy stats:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
       }
     };
-  }, [fetchStats]);
+
+    load();
+    return () => controller.abort();
+  }, []);
+
+  const handleRefresh = () => {
+    setFetching(true);
+    const load = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('accuracy_stats')
+          .select('*')
+          .order('hit_rate', { ascending: false });
+
+        if (error) throw error;
+        setStats(data as AccuracyStats[]);
+      } catch (error) {
+        console.error('Error fetching accuracy stats:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
+      }
+    };
+    load();
+  };
 
   const totalEvaluations = stats.reduce((sum, s) => sum + s.total_evaluations, 0);
   const totalCorrect = stats.reduce((sum, s) => sum + s.correct_count, 0);
@@ -66,7 +81,7 @@ export default function AccuracyPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchStats}
+          onClick={handleRefresh}
           disabled={fetching}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />

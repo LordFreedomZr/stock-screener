@@ -88,7 +88,6 @@ export function AlertPanel({ results }: AlertPanelProps) {
   if (alerts.length === 0) return null;
 
   const highAlerts = alerts.filter((a) => a.severity === 'high');
-  const mediumAlerts = alerts.filter((a) => a.severity === 'medium');
 
   return (
     <Card className="border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">

@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-
 function sendToAnalytics(metric: { name: string; value: number; rating: string }) {
   if (process.env.NODE_ENV === 'development') {
     console.log(`[Web Vitals] ${metric.name}: ${metric.value} (${metric.rating})`);

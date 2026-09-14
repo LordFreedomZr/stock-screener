@@ -212,16 +212,12 @@ function calculateScore(
   const sentimentWeight = config.weight_sentiment / totalWeight;
 
   // Momentum sub-indicators (RSI, MACD, ROC, Stoch)
-  const momentumIndicators = ['rsi', 'macd', 'roc', 'stoch'].filter(i => enabledIndicators.includes(i));
-  const momentumCount = momentumIndicators.length || 1;
   const momentumScore = (rsiScore + macdScore + rocScore + stochScore) / 4;
 
   // Volume sub-indicators (RVOL)
   const volumeScore = rvolScore;
 
   // Volatility sub-indicators (ATR, BB, ADX)
-  const volatilityIndicators = ['atr', 'bb', 'adx'].filter(i => enabledIndicators.includes(i));
-  const volatilityCount = volatilityIndicators.length || 1;
   const volatilityScore = (atrScore + bbScore + adxScore) / 3;
 
   // Final weighted score
@@ -437,7 +433,6 @@ export async function fetchSingleStock(
     const close = Number(d[2]) || 0;
     const changePercent = Number(d[3]) || 0;
     const volume = Number(d[7]) || 0;
-    const turnover = Number(d[8]) || 0;
     const rsi = d[9] != null ? Number(d[9]) : 50;
     const macd = Number(d[10]) ?? 0;
     const macdSignal = Number(d[11]) ?? 0;

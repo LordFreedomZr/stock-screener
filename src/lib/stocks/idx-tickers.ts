@@ -201,56 +201,6 @@ export const FALLBACK_STOCKS: IDXStock[] = [
   { ticker: 'BBNI', name: 'Bank Negara Indonesia', sector: 'Finance' },
 ];
 
-// Deduplicate by ticker
-function deduplicateStocks(stocks: IDXStock[]): IDXStock[] {
-  const seen = new Set<string>();
-  return stocks.filter(s => {
-    if (seen.has(s.ticker)) return false;
-    seen.add(s.ticker);
-    return true;
-  });
-}
-
-// Try to fetch additional tickers from Yahoo Finance search
-async function fetchTickersFromYahoo(): Promise<IDXStock[]> {
-  const results: IDXStock[] = [];
-  const searchLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-
-  for (const letter of searchLetters) {
-    try {
-      const url = `https://query1.finance.yahoo.com/v1/finance/search?query=${letter}.JK&quotesCount=50&newsCount=0&region=ID&lang=id-ID`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
-
-      if (!response.ok) continue;
-
-      const data = await response.json();
-      const quotes = data.quotes || [];
-
-      for (const q of quotes) {
-        if (q.symbol?.endsWith('.JK') && q.quoteType === 'EQUITY') {
-          const ticker = q.symbol.replace('.JK', '');
-          results.push({
-            ticker,
-            name: q.shortname || q.longname || ticker,
-            sector: q.sector || 'Unknown',
-          });
-        }
-      }
-
-      // Rate limit: 200ms between requests
-      await new Promise(r => setTimeout(r, 200));
-    } catch {
-      continue;
-    }
-  }
-
-  return results;
-}
-
 // Convert ticker to Yahoo Finance format
 export function toYahooTicker(ticker: string): string {
   return `${ticker}.JK`;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { ScreeningCard } from '@/components/screening/screening-card';
 import { FilterPanel } from '@/components/screening/filter-panel';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterState, ScreeningResult } from '@/types';
 import { formatCurrency, formatTime } from '@/lib/utils';
-import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp, LayoutGrid, Rows3, Columns3 } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp, Rows3, Columns3 } from 'lucide-react';
 
 type SpikeTab = 'yesterday' | '3d' | '5d';
 
@@ -43,66 +43,83 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [spikeTab, setSpikeTab] = useState<SpikeTab>('yesterday');
   const [spikeExpanded, setSpikeExpanded] = useState(false);
-  const [maxDisplay, setMaxDisplay] = useState(18);
-  const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
-
-  const fetchScreeningResults = useCallback(async () => {
-    setFetching(true);
-    setError(null);
-    try {
-      // Get enabled indicators from localStorage
-      const savedEnabled = localStorage.getItem('enabled_indicators');
-      const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
-      
-      const params = new URLSearchParams();
-      if (enabledIndicators.length > 0) {
-        params.set('enabled', enabledIndicators.join(','));
-      }
-      
-      const response = await fetch(`/api/screening?${params.toString()}`);
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        setResults(data.data);
-        setLastUpdate(new Date());
-      } else {
-        setError(data.error || 'Failed to fetch data');
-      }
-    } catch (err) {
-      console.error('Error fetching screening results:', err);
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-      setFetching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchScreeningResults();
-  }, [fetchScreeningResults]);
-
-  useEffect(() => {
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && json.data?.max_display) {
-          setMaxDisplay(json.data.max_display);
-        }
-      })
-      .catch(() => {});
-
-    // Also load from localStorage (primary source for max_display)
+  const [maxDisplay] = useState(() => {
+    if (typeof window === 'undefined') return 18;
     const saved = localStorage.getItem('max_display');
-    if (saved) {
-      setMaxDisplay(parseInt(saved) || 18);
-    }
+    return saved ? parseInt(saved) || 18 : 18;
+  });
+  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
+    if (typeof window === 'undefined') return 'compact';
+    const saved = localStorage.getItem('card_density');
+    return saved === 'compact' || saved === 'comfortable' ? saved : 'compact';
+  });
 
-    // Load density preference
-    const savedDensity = localStorage.getItem('card_density');
-    if (savedDensity === 'compact' || savedDensity === 'comfortable') {
-      setDensity(savedDensity);
-    }
+  useEffect(() => {
+    const loadScreening = async () => {
+      setFetching(true);
+      setError(null);
+      try {
+        const savedEnabled = localStorage.getItem('enabled_indicators');
+        const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
+        
+        const params = new URLSearchParams();
+        if (enabledIndicators.length > 0) {
+          params.set('enabled', enabledIndicators.join(','));
+        }
+        
+        const response = await fetch(`/api/screening?${params.toString()}`);
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          setResults(data.data);
+          setLastUpdate(new Date());
+        } else {
+          setError(data.error || 'Failed to fetch data');
+        }
+      } catch (err) {
+        console.error('Error fetching screening results:', err);
+        setError('Network error. Please try again.');
+      } finally {
+        setLoading(false);
+        setFetching(false);
+      }
+    };
+
+    loadScreening();
   }, []);
+
+  const handleRefresh = () => {
+    const loadScreening = async () => {
+      setFetching(true);
+      setError(null);
+      try {
+        const savedEnabled = localStorage.getItem('enabled_indicators');
+        const enabledIndicators = savedEnabled ? JSON.parse(savedEnabled) : ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'];
+        
+        const params = new URLSearchParams();
+        if (enabledIndicators.length > 0) {
+          params.set('enabled', enabledIndicators.join(','));
+        }
+        
+        const response = await fetch(`/api/screening?${params.toString()}`);
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          setResults(data.data);
+          setLastUpdate(new Date());
+        } else {
+          setError(data.error || 'Failed to fetch data');
+        }
+      } catch (err) {
+        console.error('Error fetching screening results:', err);
+        setError('Network error. Please try again.');
+      } finally {
+        setLoading(false);
+        setFetching(false);
+      }
+    };
+    loadScreening();
+  };
 
   const toggleDensity = () => {
     const next = density === 'compact' ? 'comfortable' : 'compact';
@@ -194,7 +211,7 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchScreeningResults}
+            onClick={handleRefresh}
             disabled={fetching}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />

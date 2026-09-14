@@ -190,58 +190,57 @@ export default function SettingsPage() {
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
   const [infoModal, setInfoModal] = useState<IndicatorDef | null>(null);
 
-  const fetchConfig = async () => {
-    setLoading(true);
-    try {
-      const savedMaxDisplay = localStorage.getItem('max_display');
-      if (savedMaxDisplay) {
-        setConfig((prev) => ({ ...prev, max_display: parseInt(savedMaxDisplay) || 18 }));
-      }
-
-      // Load enabled indicators from localStorage
-      const savedEnabled = localStorage.getItem('enabled_indicators');
-      if (savedEnabled) {
-        try {
-          const enabledIds: string[] = JSON.parse(savedEnabled);
-          setIndicators((prev) => prev.map((ind) => ({
-            ...ind,
-            enabled: enabledIds.includes(ind.id),
-          })));
-        } catch {}
-      }
-
-      const res = await fetch('/api/settings');
-      const json = await res.json();
-
-      if (json.success && json.data) {
-        const data = json.data;
-        setConfig((prev) => ({
-          ...prev,
-          id: data.id || 'default',
-          version: data.version || '1.0.0',
-          rsi_oversold: data.rsi_oversold ?? defaultConfig.rsi_oversold,
-          rsi_overbought: data.rsi_overbought ?? defaultConfig.rsi_overbought,
-          atr_min_percent: data.atr_min_percent ?? defaultConfig.atr_min_percent,
-          atr_max_percent: data.atr_max_percent ?? defaultConfig.atr_max_percent,
-          volume_min_turnover: data.volume_min_turnover ?? defaultConfig.volume_min_turnover,
-          rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
-          weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
-          weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
-          weight_volatility: data.weight_volatility ?? defaultConfig.weight_volatility,
-          weight_sentiment: data.weight_sentiment ?? defaultConfig.weight_sentiment,
-          enabled_indicators: data.enabled_indicators ?? defaultConfig.enabled_indicators,
-          created_at: data.created_at || new Date().toISOString(),
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching config:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchConfig();
+    const loadConfig = async () => {
+      setLoading(true);
+      try {
+        const savedMaxDisplay = localStorage.getItem('max_display');
+        if (savedMaxDisplay) {
+          setConfig((prev) => ({ ...prev, max_display: parseInt(savedMaxDisplay) || 18 }));
+        }
+
+        const savedEnabled = localStorage.getItem('enabled_indicators');
+        if (savedEnabled) {
+          try {
+            const enabledIds: string[] = JSON.parse(savedEnabled);
+            setIndicators((prev) => prev.map((ind) => ({
+              ...ind,
+              enabled: enabledIds.includes(ind.id),
+            })));
+          } catch {}
+        }
+
+        const res = await fetch('/api/settings');
+        const json = await res.json();
+
+        if (json.success && json.data) {
+          const data = json.data;
+          setConfig((prev) => ({
+            ...prev,
+            id: data.id || 'default',
+            version: data.version || '1.0.0',
+            rsi_oversold: data.rsi_oversold ?? defaultConfig.rsi_oversold,
+            rsi_overbought: data.rsi_overbought ?? defaultConfig.rsi_overbought,
+            atr_min_percent: data.atr_min_percent ?? defaultConfig.atr_min_percent,
+            atr_max_percent: data.atr_max_percent ?? defaultConfig.atr_max_percent,
+            volume_min_turnover: data.volume_min_turnover ?? defaultConfig.volume_min_turnover,
+            rvol_threshold: data.rvol_threshold ?? defaultConfig.rvol_threshold,
+            weight_momentum: data.weight_momentum ?? defaultConfig.weight_momentum,
+            weight_volume: data.weight_volume ?? defaultConfig.weight_volume,
+            weight_volatility: data.weight_volatility ?? defaultConfig.weight_volatility,
+            weight_sentiment: data.weight_sentiment ?? defaultConfig.weight_sentiment,
+            enabled_indicators: data.enabled_indicators ?? defaultConfig.enabled_indicators,
+            created_at: data.created_at || new Date().toISOString(),
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching config:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadConfig();
   }, []);
 
   const handleSave = async () => {
@@ -303,7 +302,6 @@ export default function SettingsPage() {
       const clamped = Math.min(100, Math.max(0, numValue));
       
       setConfig((prev) => {
-        const oldTotal = prev.weight_momentum + prev.weight_volume + prev.weight_volatility + prev.weight_sentiment;
         const oldValue = prev[key] || 0;
         const newValue = clamped;
         const diff = newValue - oldValue;

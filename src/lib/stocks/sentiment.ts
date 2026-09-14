@@ -30,10 +30,6 @@ const NEGATIVE_WORDS = [
   'risiko', 'risk', 'bahaya', 'warning', 'peringatan',
 ];
 
-const INTENSIFIERS = [
-  'sangat', 'terlalu', 'paling', 'ekstrem', 'dramatis', 'tajam',
-];
-
 export interface SentimentResult {
   score: number; // -1 to 1
   label: 'positive' | 'negative' | 'neutral';

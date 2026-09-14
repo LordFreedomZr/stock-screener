@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WatchlistCard } from '@/components/watchlist/watchlist-card';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,39 +15,32 @@ export default function WatchlistPage() {
   const [evaluating, setEvaluating] = useState(false);
   const [evalNotice, setEvalNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'stopped'>('active');
-  const [groups, setGroups] = useState<string[]>(['Default']);
-  const [selectedGroup, setSelectedGroup] = useState<string>('Default');
-  const [newGroupName, setNewGroupName] = useState('');
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const groupsLoadedRef = useRef(false);
-
-  // Load groups from localStorage on mount
-  useEffect(() => {
+  const [groups, setGroups] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return ['Default'];
     const saved = localStorage.getItem('watchlist_groups');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setGroups(parsed);
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch {}
     }
-    const savedGroup = localStorage.getItem('watchlist_selected_group');
-    if (savedGroup) setSelectedGroup(savedGroup);
-    groupsLoadedRef.current = true;
-  }, []);
+    return ['Default'];
+  });
+  const [selectedGroup, setSelectedGroup] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'Default';
+    return localStorage.getItem('watchlist_selected_group') || 'Default';
+  });
+  const [newGroupName, setNewGroupName] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Save groups to localStorage when changed
   useEffect(() => {
-    if (groupsLoadedRef.current && groups.length > 0) {
+    if (groups.length > 0) {
       localStorage.setItem('watchlist_groups', JSON.stringify(groups));
     }
   }, [groups]);
 
   useEffect(() => {
-    if (groupsLoadedRef.current) {
-      localStorage.setItem('watchlist_selected_group', selectedGroup);
-    }
+    localStorage.setItem('watchlist_selected_group', selectedGroup);
   }, [selectedGroup]);
 
   const addGroup = (name: string) => {
@@ -74,43 +67,51 @@ export default function WatchlistPage() {
     }
   };
 
-  const fetchWatchlist = useCallback(async () => {
-    // Cancel any previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setFetching(true);
-    try {
-      // Fetch items (without group filter - group filtering done client-side)
-      const response = await fetch(`/api/watchlist`, {
-        signal: abortControllerRef.current.signal,
-      });
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setItems(data.data);
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
-      }
-      console.error('Error fetching watchlist:', error);
-    } finally {
-      setLoading(false);
-      setFetching(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchWatchlist();
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const load = async () => {
+      setFetching(true);
+      try {
+        const response = await fetch(`/api/watchlist`, {
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (data.success && data.data) {
+          setItems(data.data);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Error fetching watchlist:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
       }
     };
-  }, [fetchWatchlist]);
+
+    load();
+    return () => controller.abort();
+  }, []);
+
+  const handleRefresh = () => {
+    const load = async () => {
+      setFetching(true);
+      try {
+        const response = await fetch(`/api/watchlist`);
+        const data = await response.json();
+        if (data.success && data.data) {
+          setItems(data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching watchlist:', error);
+      } finally {
+        setLoading(false);
+        setFetching(false);
+      }
+    };
+    load();
+  };
 
   // On-demand evaluation for all active items
   const handleEvaluateAll = async () => {
@@ -225,7 +226,7 @@ export default function WatchlistPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchWatchlist}
+            onClick={handleRefresh}
             disabled={fetching}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${fetching ? 'animate-spin' : ''}`} />

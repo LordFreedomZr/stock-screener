@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ScreeningCard } from '@/components/screening/screening-card';
 import { FilterPanel } from '@/components/screening/filter-panel';
@@ -8,10 +8,11 @@ import { AlertPanel } from '@/components/alert-panel';
 import { EconomicCalendar } from '@/components/economic-calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterState, ScreeningResult } from '@/types';
 import { formatCurrency, formatTime } from '@/lib/utils';
-import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp, Rows3, Columns3 } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, BarChart3, Clock, Zap, Flame, ChevronDown, ChevronUp, Rows3, Columns3, Search } from 'lucide-react';
 
 type SpikeTab = 'yesterday' | '3d' | '5d';
 
@@ -53,6 +54,50 @@ export default function DashboardPage() {
     const saved = localStorage.getItem('card_density');
     return saved === 'compact' || saved === 'comfortable' ? saved : 'compact';
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ScreeningResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+    setSearchLoading(true);
+    setSearchOpen(true);
+    try {
+      const res = await fetch(`/api/stock/${encodeURIComponent(query.toUpperCase())}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setSearchResults([data.data as ScreeningResult]);
+      } else {
+        setSearchResults([]);
+      }
+    } catch {
+      setSearchResults([]);
+    }
+    setSearchLoading(false);
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => handleSearch(value), 400);
+  }, [handleSearch]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     const loadScreening = async () => {
@@ -191,15 +236,63 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="shrink-0">
           <h1 className="text-2xl font-bold text-white">Stock Screener</h1>
           <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
             <Clock className="w-4 h-4" />
             {lastUpdate ? `Update terakhir: ${formatTime(lastUpdate)}` : 'Memuat...'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Search Bar */}
+        <div className="flex-1 max-w-md relative" ref={searchRef}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Input
+              type="text"
+              placeholder="Cari saham di luar top 150 (contoh: ZATA)"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery) handleSearch(searchQuery);
+              }}
+              className="h-9 text-sm pl-9 bg-gray-800 border-gray-700"
+            />
+          </div>
+          {searchOpen && (searchLoading || searchResults.length > 0) && (
+            <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+              {searchLoading ? (
+                <div className="p-3 text-center text-gray-400 text-xs">
+                  <RefreshCw className="w-3 h-3 animate-spin inline mr-1" />
+                  Mencari...
+                </div>
+              ) : (
+                searchResults.map((stock) => (
+                  <Link
+                    key={stock.ticker}
+                    href={`/stock/${stock.ticker}`}
+                    className="flex items-center justify-between p-3 hover:bg-gray-700 transition-colors"
+                    onClick={() => setSearchOpen(false)}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-white">{stock.ticker}</p>
+                      <p className="text-xs text-gray-400 truncate max-w-[200px]">{stock.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-white">{formatCurrency(stock.price)}</p>
+                      <p className={`text-xs ${stock.price_change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {stock.price_change_percent >= 0 ? '+' : ''}{stock.price_change_percent.toFixed(2)}%
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={toggleDensity}
             className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"

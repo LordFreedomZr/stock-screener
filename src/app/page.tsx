@@ -251,7 +251,7 @@ export default function DashboardPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <Input
               type="text"
-              placeholder="Cari saham di luar top 150 (contoh: ZATA)"
+              placeholder="Cari saham"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) => {

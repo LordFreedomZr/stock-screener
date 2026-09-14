@@ -14,7 +14,7 @@ import { formatCurrency, formatNumber, formatPercent, getScoreColor, getDirectio
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Star, Activity, BarChart3, 
   Zap, Target, Shield, Clock, RefreshCw, LineChart, Newspaper, ExternalLink,
-  CheckCircle, AlertTriangle, Minus
+  CheckCircle, AlertTriangle, Minus, FileText
 } from 'lucide-react';
 
 export default function StockDetailPage() {
@@ -344,6 +344,121 @@ export default function StockDetailPage() {
     }
   };
 
+  // Derived state (before early returns to satisfy hooks rules)
+  const isBullish = result?.direction === 'bullish';
+
+  const narrative = useMemo(() => {
+    if (!result) return null;
+
+    const sections: { title: string; text: string; color: string }[] = [];
+
+    // 1. Kesimpulan Utama
+    const verdictColor = isBullish ? 'emerald' : 'red';
+    const verdictText = isBullish
+      ? `${ticker} menunjukkan sinyal bullish dengan skor ${result.score}/5.`
+      : `${ticker} menunjukkan sinyal bearish dengan skor ${result.score}/5.`;
+    sections.push({ title: 'Kesimpulan Utama', text: verdictText, color: verdictColor });
+
+    // 2. Momentum
+    const momentumParts: string[] = [];
+    if (result.rsi < 30) momentumParts.push(`RSI ${result.rsi.toFixed(1)} di zona oversold, potensi rebound`);
+    else if (result.rsi > 70) momentumParts.push(`RSI ${result.rsi.toFixed(1)} di zona overbought, berhati-hati`);
+    else momentumParts.push(`RSI ${result.rsi.toFixed(1)} netral`);
+
+    if (result.macd > result.macd_signal) momentumParts.push('MACD di atas sinyal (bullish cross)');
+    else momentumParts.push('MACD di bawah sinyal (bearish cross)');
+
+    if (result.roc > 0) momentumParts.push(`ROC +${result.roc.toFixed(1)}% menunjukkan laju naik`);
+    else momentumParts.push(`ROC ${result.roc.toFixed(1)}% menunjukkan laju turun`);
+
+    if (result.stoch_k !== undefined) {
+      if (result.stoch_k < 20) momentumParts.push(`Stochastic ${result.stoch_k.toFixed(0)} oversold`);
+      else if (result.stoch_k > 80) momentumParts.push(`Stochastic ${result.stoch_k.toFixed(0)} overbought`);
+    }
+
+    const momentumScore = (result.rsi > 50 ? 1 : -1) + (result.macd > result.macd_signal ? 1 : -1) + (result.roc > 0 ? 1 : -1);
+    const momentumLabel = momentumScore >= 2 ? 'Kuat' : momentumScore <= -2 ? 'Lemah' : 'Campuran';
+    sections.push({ title: 'Momentum', text: `${momentumParts.join('. ')}. Momentum ${momentumLabel}.`, color: momentumScore >= 1 ? 'emerald' : 'red' });
+
+    // 3. Volume
+    const volumeParts: string[] = [];
+    if (result.rvol >= 2) volumeParts.push(`RVOL ${result.rvol.toFixed(1)}x — volume sangat aktif, minat tinggi`);
+    else if (result.rvol >= 1.5) volumeParts.push(`RVOL ${result.rvol.toFixed(1)}x — volume di atas normal`);
+    else if (result.rvol >= 1) volumeParts.push(`RVOL ${result.rvol.toFixed(1)}x — volume normal`);
+    else volumeParts.push(`RVOL ${result.rvol.toFixed(1)}x — volume sepi, kurang minat`);
+
+    if (result.volume_spike) {
+      const vs = result.volume_spike;
+      if (vs.yesterday > vs.avg_5d * 2) volumeParts.push(`Spike volume kemarin ${((vs.yesterday / vs.avg_5d - 1) * 100).toFixed(0)}% dari rata-rata 5 hari`);
+    }
+
+    sections.push({ title: 'Volume', text: volumeParts.join('. ') + '.', color: result.rvol >= 1.5 ? 'cyan' : 'gray' });
+
+    // 4. Volatilitas
+    const volParts: string[] = [];
+    if (result.atr_percent >= 3) volParts.push(`ATR ${result.atr_percent.toFixed(1)}% — volatilitas tinggi, cocok untuk swing trading`);
+    else if (result.atr_percent >= 1.5) volParts.push(`ATR ${result.atr_percent.toFixed(1)}% — volatilitas moderat`);
+    else volParts.push(`ATR ${result.atr_percent.toFixed(1)}% — volatilitas rendah, pergerakan terbatas`);
+
+    if (result.bb_percent !== undefined) {
+      if (result.bb_percent < 0.2) volParts.push(`Harga dekat lower BB, potensi bounce`);
+      else if (result.bb_percent > 0.8) volParts.push(`Harga dekat upper BB, potensi pullback`);
+      else volParts.push(`Harga di tengah BB (position ${(result.bb_percent * 100).toFixed(0)}%)`);
+    }
+
+    if (result.adx !== undefined && result.adx > 25) {
+      const trendDir = result.plus_di && result.minus_di && result.plus_di > result.minus_di ? 'naik' : 'turun';
+      volParts.push(`ADX ${result.adx.toFixed(0)} — tren ${trendDir} kuat`);
+    } else if (result.adx !== undefined) {
+      volParts.push(`ADX ${result.adx.toFixed(0)} — tren lemah, potensi konsolidasi`);
+    }
+
+    sections.push({ title: 'Volatilitas & Tren', text: volParts.join('. ') + '.', color: result.atr_percent >= 2.5 ? 'purple' : 'gray' });
+
+    // 5. Multi-Timeframe Alignment
+    const mtfKeys = Object.keys(mtfData);
+    if (mtfKeys.length >= 3) {
+      const bullCount = mtfKeys.filter(k => mtfData[k].direction === 'bullish').length;
+      const total = mtfKeys.length;
+      const alignment = bullCount === total ? 'semua timeframe bullish'
+        : bullCount === 0 ? 'semua timeframe bearish'
+        : `${bullCount}/${total} timeframe bullish`;
+      const alignColor = bullCount === total ? 'emerald' : bullCount === 0 ? 'red' : 'yellow';
+      sections.push({ title: 'Multi-Timeframe', text: `Arah ${alignment}.`, color: alignColor });
+    }
+
+    // 6. Sentimen
+    if (result.sentiment_score !== undefined && result.sentiment_score !== 0) {
+      const sentLabel = result.sentiment_label === 'positive' ? 'Positif' : result.sentiment_label === 'negative' ? 'Negatif' : 'Netral';
+      const sentText = `Sentimen berita: ${sentLabel} (score ${result.sentiment_score.toFixed(2)}). ${
+        result.sentiment_score > 0.3 ? 'Berita mendukung arah naik.' :
+        result.sentiment_score < -0.3 ? 'Berita mendukung arah turun.' : 'Tidak ada sentimen kuat dari berita.'
+      }`;
+      sections.push({ title: 'Sentimen', text: sentText, color: result.sentiment_score > 0 ? 'teal' : 'red' });
+    }
+
+    // 7. Risk/Reward
+    const rrRatio = result.max_loss_percent !== 0
+      ? (result.max_profit_percent / Math.abs(result.max_loss_percent)).toFixed(1)
+      : '-';
+    sections.push({
+      title: 'Risiko & Reward',
+      text: `Profit maksimal +${result.max_profit_percent.toFixed(1)}% (${formatCurrency(result.max_profit_nominal)}), loss maksimal ${result.max_loss_percent.toFixed(1)}% (${formatCurrency(result.max_loss_nominal)}). Rasio R:R = ${rrRatio}:1.`,
+      color: Number(rrRatio) >= 2 ? 'emerald' : Number(rrRatio) >= 1 ? 'yellow' : 'red'
+    });
+
+    // 8. Level Kunci
+    if (result.bb_upper && result.bb_lower) {
+      sections.push({
+        title: 'Level Kunci (Bollinger Bands)',
+        text: `Resistance: ${formatCurrency(result.bb_upper)} | Support: ${formatCurrency(result.bb_lower)} | Middle: ${formatCurrency(result.bb_middle || 0)}`,
+        color: 'blue'
+      });
+    }
+
+    return sections;
+  }, [result, mtfData, isBullish, ticker]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -372,8 +487,6 @@ export default function StockDetailPage() {
       </div>
     );
   }
-
-  const isBullish = result.direction === 'bullish';
 
   return (
     <div className="space-y-6">
@@ -753,6 +866,34 @@ export default function StockDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Narrative Summary */}
+      {narrative && narrative.length > 0 && (
+        <Card className="border-gray-800/50 bg-gray-900/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4 text-amber-400" />
+              Kesimpulan Analisis
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {narrative.map((section, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className={`w-1 rounded-full shrink-0 bg-${section.color}-500`} />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{section.title}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{section.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-600 mt-4 italic">
+              Narasi di atas dihasilkan secara otomatis berdasarkan data teknikal dan sentimen. Bukan rekomendasi trading.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* News */}
       <Card className="border-gray-800/50 bg-gray-900/50">

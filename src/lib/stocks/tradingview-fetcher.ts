@@ -53,6 +53,9 @@ const SCAN_COLUMNS = [
   'ADX',                 // 23: ADX
   'ADX+DI',              // 24: +DI
   'ADX-DI',              // 25: -DI
+  'EMA20',               // 26: EMA 20
+  'EMA50',               // 27: EMA 50
+  'EMA200',              // 28: EMA 200
 ];
 
 export interface TradingViewQuote {
@@ -111,7 +114,8 @@ function calculateScore(
   minusDI: number,
   sentimentScore: number,
   config: ScoreConfig,
-  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']
+  enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment'],
+  maAlignment: 'bullish' | 'bearish' | 'neutral' = 'neutral'
 ): { score: number; direction: 'bullish' | 'bearish' } {
   const midRsi = (config.rsi_overbought + config.rsi_oversold) / 2;
 
@@ -160,42 +164,49 @@ function calculateScore(
     else atrScore = 0.2;
   }
 
-  // Bollinger Bands signal (0-1) - only if enabled
-  // %B > 0.8 = near upper (overbought), %B < 0.2 = near lower (oversold)
+  // Bollinger Bands signal with ADX Trend Filter
   let bbScore = 0;
   if (enabledIndicators.includes('bb')) {
-    if (bbPercent >= 0.8) bbScore = 0.2; // Near upper = overbought
-    else if (bbPercent <= 0.2) bbScore = 0.9; // Near lower = oversold (buy signal)
-    else if (bbPercent >= 0.4 && bbPercent <= 0.6) bbScore = 0.5; // Middle = neutral
-    else if (bbPercent > 0.6) bbScore = 0.6; // Above middle
-    else bbScore = 0.4; // Below middle
+    if (bbPercent <= 0.2) {
+      if (adx > 25 && minusDI > plusDI) {
+        bbScore = 0.2; // Strong downtrend riding lower band = continuation sell signal
+      } else {
+        bbScore = 0.9; // Oversold bounce signal
+      }
+    } else if (bbPercent >= 0.8) {
+      if (adx > 25 && plusDI > minusDI) {
+        bbScore = 0.8; // Strong uptrend riding upper band = momentum buy signal
+      } else {
+        bbScore = 0.2; // Overbought signal
+      }
+    } else if (bbPercent >= 0.4 && bbPercent <= 0.6) bbScore = 0.5;
+    else if (bbPercent > 0.6) bbScore = 0.6;
+    else bbScore = 0.4;
   }
 
   // Stochastic signal (0-1) - only if enabled
-  // K > 80 = overbought, K < 20 = oversold, golden cross K > D = bullish
   let stochScore = 0;
   if (enabledIndicators.includes('stoch')) {
     const stochBullish = stochK > stochD;
     const inOversold = stochK < 20;
     const inOverbought = stochK > 80;
     
-    if (inOversold && stochBullish) stochScore = 0.9; // Oversold + golden cross = strong buy
-    else if (inOverbought && !stochBullish) stochScore = 0.1; // Overbought + death cross = strong sell
+    if (inOversold && stochBullish) stochScore = 0.9;
+    else if (inOverbought && !stochBullish) stochScore = 0.1;
     else if (stochBullish) stochScore = 0.7;
     else stochScore = 0.3;
   }
 
   // ADX signal (0-1) - only if enabled
-  // ADX > 25 = strong trend, +DI > -DI = bullish
   let adxScore = 0;
   if (enabledIndicators.includes('adx')) {
     const strongTrend = adx > 25;
     const bullishTrend = plusDI > minusDI;
     const trendStrength = Math.min(adx / 50, 1);
     
-    if (strongTrend && bullishTrend) adxScore = 0.5 + trendStrength * 0.5; // Strong bullish
-    else if (strongTrend && !bullishTrend) adxScore = 0.5 - trendStrength * 0.5; // Strong bearish
-    else adxScore = 0.5; // Weak trend = neutral
+    if (strongTrend && bullishTrend) adxScore = 0.5 + trendStrength * 0.5;
+    else if (strongTrend && !bullishTrend) adxScore = 0.5 - trendStrength * 0.5;
+    else adxScore = 0.5;
   }
 
   // Sentiment signal (0-1) - only if enabled
@@ -211,8 +222,11 @@ function calculateScore(
   const volatilityWeight = config.weight_volatility / totalWeight;
   const sentimentWeight = config.weight_sentiment / totalWeight;
 
+  // MA Alignment modifier (+0.1 for bullish alignment, -0.1 for bearish)
+  const maBonus = maAlignment === 'bullish' ? 0.1 : maAlignment === 'bearish' ? -0.1 : 0;
+
   // Momentum sub-indicators (RSI, MACD, ROC, Stoch)
-  const momentumScore = (rsiScore + macdScore + rocScore + stochScore) / 4;
+  const momentumScore = Math.min(1, Math.max(0, (rsiScore + macdScore + rocScore + stochScore) / 4 + maBonus));
 
   // Volume sub-indicators (RVOL)
   const volumeScore = rvolScore;
@@ -227,21 +241,19 @@ function calculateScore(
     volatilityScore * volatilityWeight +
     sentimentScoreNorm * sentimentWeight;
 
-  // Prevent division by zero - if no indicators enabled, score is 3 (neutral)
   const score = totalWeight === 0 
     ? 3 
     : Math.min(5, Math.max(1, Math.round(rawScore * 5 * 10) / 10));
 
-  // Direction based on momentum + trend
-  const bullish = (rsiScore + macdScore + rocScore + stochScore + (plusDI > minusDI ? 1 : 0)) / 5;
-  const bearish = ((1 - rsiScore) + (1 - macdScore) + (1 - rocScore) + (1 - stochScore) + (minusDI > plusDI ? 1 : 0)) / 5;
+  // Direction based on momentum + trend + MA alignment
+  const bullish = (rsiScore + macdScore + rocScore + stochScore + (plusDI > minusDI ? 1 : 0) + (maAlignment === 'bullish' ? 1 : 0)) / 6;
+  const bearish = ((1 - rsiScore) + (1 - macdScore) + (1 - rocScore) + (1 - stochScore) + (minusDI > plusDI ? 1 : 0) + (maAlignment === 'bearish' ? 1 : 0)) / 6;
 
-  return { score, direction: bullish > bearish ? 'bullish' : 'bearish' };
+  return { score, direction: bullish >= bearish ? 'bullish' : 'bearish' };
 }
 
 /**
  * Fetch top liquid IDX stocks using TradingView Scanner API.
- * All indicators (RSI, MACD, ATR, etc.) come from TradingView built-in - no manual calculation.
  */
 export async function fetchTradingViewScreening(
   config: ScoreConfig = DEFAULT_SCORE_CONFIG,
@@ -291,6 +303,9 @@ export async function fetchTradingViewScreening(
     const name = String(d[1] || ticker);
     const close = Number(d[2]) || 0;
     const changePercent = Number(d[3]) || 0;
+    const open = Number(d[4]) || close;
+    const high = Number(d[5]) || close;
+    const low = Number(d[6]) || close;
     const volume = Number(d[7]) || 0;
     const turnover = Number(d[8]) || 0;
     const rsi = d[9] != null ? Number(d[9]) : 50;
@@ -302,7 +317,7 @@ export async function fetchTradingViewScreening(
     const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
-    // New indicators from TradingView
+    // Indicators
     const bbUpper = Number(d[18]) || close;
     const bbMiddle = Number(d[19]) || close;
     const bbLower = Number(d[20]) || close;
@@ -312,32 +327,44 @@ export async function fetchTradingViewScreening(
     const plusDI = d[24] != null ? Number(d[24]) : 25;
     const minusDI = d[25] != null ? Number(d[25]) : 25;
 
+    const ema20 = d[26] != null ? Number(d[26]) : close;
+    const ema50 = d[27] != null ? Number(d[27]) : close;
+    const ema200 = d[28] != null ? Number(d[28]) : close;
+
     // Skip illiquid stocks
     if (turnover < config.volume_min_turnover || close <= 0) continue;
 
-    // Calculate derived metrics
+    // Derived metrics
     const rvol = avgVol10d > 0 ? volume / avgVol10d : 1.0;
     const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
-    
-    // Bollinger Bands %B calculation
     const bbRange = bbUpper - bbLower;
     const bbPercent = bbRange > 0 ? (close - bbLower) / bbRange : 0.5;
 
-    // Sentiment placeholder (will be updated if sentiment enabled)
+    // MA Alignment
+    let maAlignment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (ema20 > 0 && ema50 > 0) {
+      if (close >= ema20 && ema20 >= ema50) maAlignment = 'bullish';
+      else if (close <= ema20 && ema20 <= ema50) maAlignment = 'bearish';
+    }
+
+    // Pivot Points (Classic)
+    const pivotPoint = Math.round(((high + low + close) / 3) * 100) / 100;
+    const pivotR1 = Math.round((2 * pivotPoint - low) * 100) / 100;
+    const pivotS1 = Math.round((2 * pivotPoint - high) * 100) / 100;
+    const pivotR2 = Math.round((pivotPoint + (high - low)) * 100) / 100;
+    const pivotS2 = Math.round((pivotPoint - (high - low)) * 100) / 100;
+
     const sentimentScore = 0;
 
-    // Score using TradingView built-in indicators
     const { score, direction } = calculateScore(
       rsi, macd, macdSignal, roc, rvol, atrPercent,
       bbPercent, stochK, stochD, adx, plusDI, minusDI,
-      sentimentScore, config, enabledIndicators
+      sentimentScore, config, enabledIndicators, maAlignment
     );
 
-    // Volume spike
     const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;
     const spikeVs30d = avgVol30d > 0 ? Math.round(((volume - avgVol30d) / avgVol30d) * 100) : 0;
 
-    // Profit/Loss targets based on ATR
     const maxProfitPercent = Math.max(1, Math.round(atrPercent * 2 * 10) / 10);
     const maxProfitNominal = Math.round(close * (maxProfitPercent / 100));
     const maxLossPercent = -Math.max(1, Math.round(atrPercent * 10) / 10);
@@ -371,6 +398,15 @@ export async function fetchTradingViewScreening(
       adx: Math.round(adx * 10) / 10,
       plus_di: Math.round(plusDI * 10) / 10,
       minus_di: Math.round(minusDI * 10) / 10,
+      ema20: Math.round(ema20 * 100) / 100,
+      ema50: Math.round(ema50 * 100) / 100,
+      ema200: Math.round(ema200 * 100) / 100,
+      ma_alignment: maAlignment,
+      pivot_point: pivotPoint,
+      pivot_r1: pivotR1,
+      pivot_s1: pivotS1,
+      pivot_r2: pivotR2,
+      pivot_s2: pivotS2,
       sentiment_score: sentimentScore,
       sentiment_label: 'neutral',
       max_profit_percent: maxProfitPercent,
@@ -387,9 +423,7 @@ export async function fetchTradingViewScreening(
     });
   }
 
-  // Cache the results
   setCachedData(cacheKey, results);
-
   return results;
 }
 
@@ -401,7 +435,6 @@ export async function fetchSingleStock(
   config: ScoreConfig = DEFAULT_SCORE_CONFIG,
   enabledIndicators: string[] = ['rsi', 'macd', 'roc', 'rvol', 'atr', 'bb', 'stoch', 'adx', 'sentiment']
 ): Promise<ScreeningResult | null> {
-  // Try with IDX: prefix first, then without
   for (const prefix of ['IDX:', '']) {
     const payload = {
       filter: [
@@ -432,6 +465,9 @@ export async function fetchSingleStock(
     const name = String(d[1] || ticker.toUpperCase());
     const close = Number(d[2]) || 0;
     const changePercent = Number(d[3]) || 0;
+    const open = Number(d[4]) || close;
+    const high = Number(d[5]) || close;
+    const low = Number(d[6]) || close;
     const volume = Number(d[7]) || 0;
     const rsi = d[9] != null ? Number(d[9]) : 50;
     const macd = Number(d[10]) ?? 0;
@@ -442,7 +478,6 @@ export async function fetchSingleStock(
     const roc = Number(d[16]) ?? changePercent;
     const sector = String(d[17] || 'Unknown');
 
-    // New indicators
     const bbUpper = Number(d[18]) || close;
     const bbMiddle = Number(d[19]) || close;
     const bbLower = Number(d[20]) || close;
@@ -452,18 +487,35 @@ export async function fetchSingleStock(
     const plusDI = d[24] != null ? Number(d[24]) : 25;
     const minusDI = d[25] != null ? Number(d[25]) : 25;
 
+    const ema20 = d[26] != null ? Number(d[26]) : close;
+    const ema50 = d[27] != null ? Number(d[27]) : close;
+    const ema200 = d[28] != null ? Number(d[28]) : close;
+
     if (close <= 0) continue;
 
     const rvol = avgVol10d > 0 ? volume / avgVol10d : 1.0;
     const atrPercent = close > 0 ? (atrNominal / close) * 100 : 2.0;
     const bbRange = bbUpper - bbLower;
     const bbPercent = bbRange > 0 ? (close - bbLower) / bbRange : 0.5;
+
+    let maAlignment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (ema20 > 0 && ema50 > 0) {
+      if (close >= ema20 && ema20 >= ema50) maAlignment = 'bullish';
+      else if (close <= ema20 && ema20 <= ema50) maAlignment = 'bearish';
+    }
+
+    const pivotPoint = Math.round(((high + low + close) / 3) * 100) / 100;
+    const pivotR1 = Math.round((2 * pivotPoint - low) * 100) / 100;
+    const pivotS1 = Math.round((2 * pivotPoint - high) * 100) / 100;
+    const pivotR2 = Math.round((pivotPoint + (high - low)) * 100) / 100;
+    const pivotS2 = Math.round((pivotPoint - (high - low)) * 100) / 100;
+
     const sentimentScore = 0;
 
     const { score, direction } = calculateScore(
       rsi, macd, macdSignal, roc, rvol, atrPercent,
       bbPercent, stochK, stochD, adx, plusDI, minusDI,
-      sentimentScore, config, enabledIndicators
+      sentimentScore, config, enabledIndicators, maAlignment
     );
 
     const spikeVs10d = avgVol10d > 0 ? Math.round(((volume - avgVol10d) / avgVol10d) * 100) : 0;
@@ -501,6 +553,15 @@ export async function fetchSingleStock(
       adx: Math.round(adx * 10) / 10,
       plus_di: Math.round(plusDI * 10) / 10,
       minus_di: Math.round(minusDI * 10) / 10,
+      ema20: Math.round(ema20 * 100) / 100,
+      ema50: Math.round(ema50 * 100) / 100,
+      ema200: Math.round(ema200 * 100) / 100,
+      ma_alignment: maAlignment,
+      pivot_point: pivotPoint,
+      pivot_r1: pivotR1,
+      pivot_s1: pivotS1,
+      pivot_r2: pivotR2,
+      pivot_s2: pivotS2,
       sentiment_score: sentimentScore,
       sentiment_label: 'neutral',
       max_profit_percent: maxProfitPercent,
@@ -582,3 +643,4 @@ export async function fetchTradingViewQuote(ticker: string): Promise<TradingView
   const map = await fetchTradingViewQuotesBatch([ticker.trim().toUpperCase()]);
   return map[ticker.trim().toUpperCase()] || null;
 }
+

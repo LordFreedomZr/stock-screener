@@ -29,7 +29,26 @@ export default function StockDetailPage() {
   const [fetching, setFetching] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [timeframe, setTimeframe] = useState<{ range: string; interval: string; label: string }>({ range: '3mo', interval: '1d', label: '3M' });
-  const [news, setNews] = useState<{ title: string; link: string; publisher: string; publishedAt: string; thumbnail?: string }[]>([]);
+  const [news, setNews] = useState<{
+    title: string;
+    link: string;
+    publisher: string;
+    publishedAt: string;
+    thumbnail?: string;
+    sentiment?: {
+      score: number;
+      label: 'positive' | 'negative' | 'neutral';
+      confidence: number;
+      positiveWords: string[];
+      negativeWords: string[];
+    };
+  }[]>([]);
+  const [aggregateSentiment, setAggregateSentiment] = useState<{
+    score: number;
+    label: 'positive' | 'negative' | 'neutral';
+    confidence: number;
+    details?: { positiveWords: string[]; negativeWords: string[]; matchedPhrases: string[] };
+  } | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [mtfData, setMtfData] = useState<Record<string, { rsi: number; macd: number; macd_signal: number; roc: number; rvol: number; direction: string }>>({});
   const [mtfLoading, setMtfLoading] = useState(false);
@@ -236,6 +255,9 @@ export default function StockDetailPage() {
         const data = await res.json();
         if (data.success && data.data) {
           setNews(data.data);
+          if (data.sentiment) {
+            setAggregateSentiment(data.sentiment);
+          }
         }
       } catch {}
       setNewsLoading(false);
@@ -427,17 +449,32 @@ export default function StockDetailPage() {
       sections.push({ title: 'Multi-Timeframe', text: `Arah ${alignment}.`, color: alignColor });
     }
 
-    // 6. Sentimen
-    if (result.sentiment_score !== undefined && result.sentiment_score !== 0) {
-      const sentLabel = result.sentiment_label === 'positive' ? 'Positif' : result.sentiment_label === 'negative' ? 'Negatif' : 'Netral';
-      const sentText = `Sentimen berita: ${sentLabel} (score ${result.sentiment_score.toFixed(2)}). ${
-        result.sentiment_score > 0.3 ? 'Berita mendukung arah naik.' :
-        result.sentiment_score < -0.3 ? 'Berita mendukung arah turun.' : 'Tidak ada sentimen kuat dari berita.'
-      }`;
-      sections.push({ title: 'Sentimen', text: sentText, color: result.sentiment_score > 0 ? 'teal' : 'red' });
+    // 6. Moving Average Alignment
+    if (result.ma_alignment) {
+      const maText = result.ma_alignment === 'bullish'
+        ? `Pergerakan rata-rata menunjukkan susunan Bullish (Close >= EMA20 >= EMA50).`
+        : result.ma_alignment === 'bearish'
+        ? `Pergerakan rata-rata menunjukkan susunan Bearish (Close <= EMA20 <= EMA50).`
+        : `Moving Average berosilasi netral.`;
+      sections.push({
+        title: 'Moving Average (EMA)',
+        text: `${maText} ${result.ema20 ? `EMA20: ${formatCurrency(result.ema20)}, EMA50: ${formatCurrency(result.ema50 || 0)}.` : ''}`,
+        color: result.ma_alignment === 'bullish' ? 'emerald' : result.ma_alignment === 'bearish' ? 'red' : 'gray'
+      });
     }
 
-    // 7. Risk/Reward
+    // 7. Sentimen Berita
+    if (aggregateSentiment && aggregateSentiment.label) {
+      const sentLabel = aggregateSentiment.label === 'positive' ? 'Positif' : aggregateSentiment.label === 'negative' ? 'Negatif' : 'Netral';
+      const posWords = aggregateSentiment.details?.positiveWords.join(', ') || '';
+      const negWords = aggregateSentiment.details?.negativeWords.join(', ') || '';
+      const sentText = `Analisis ${news.length} berita terbaru menunjukkan sentimen ${sentLabel} (score ${aggregateSentiment.score}). ${
+        posWords ? `Kata pemicu positif: ${posWords}. ` : ''
+      }${negWords ? `Kata pemicu negatif: ${negWords}.` : ''}`;
+      sections.push({ title: 'Sentimen Berita', text: sentText, color: aggregateSentiment.label === 'positive' ? 'teal' : aggregateSentiment.label === 'negative' ? 'red' : 'gray' });
+    }
+
+    // 8. Risk/Reward
     const rrRatio = result.max_loss_percent !== 0
       ? (result.max_profit_percent / Math.abs(result.max_loss_percent)).toFixed(1)
       : '-';
@@ -447,17 +484,21 @@ export default function StockDetailPage() {
       color: Number(rrRatio) >= 2 ? 'emerald' : Number(rrRatio) >= 1 ? 'yellow' : 'red'
     });
 
-    // 8. Level Kunci
-    if (result.bb_upper && result.bb_lower) {
-      sections.push({
-        title: 'Level Kunci (Bollinger Bands)',
-        text: `Resistance: ${formatCurrency(result.bb_upper)} | Support: ${formatCurrency(result.bb_lower)} | Middle: ${formatCurrency(result.bb_middle || 0)}`,
-        color: 'blue'
-      });
-    }
+    // 9. Level Kunci & Pivot Points
+    const pivotText = result.pivot_point
+      ? `Pivot: ${formatCurrency(result.pivot_point)} | R1: ${formatCurrency(result.pivot_r1 || 0)} | S1: ${formatCurrency(result.pivot_s1 || 0)}.`
+      : '';
+    const bbText = result.bb_upper && result.bb_lower
+      ? ` BB Upper: ${formatCurrency(result.bb_upper)}, BB Lower: ${formatCurrency(result.bb_lower)}.`
+      : '';
+    sections.push({
+      title: 'Level Kunci & Pivot Points',
+      text: `${pivotText}${bbText}`,
+      color: 'blue'
+    });
 
     return sections;
-  }, [result, mtfData, isBullish, ticker]);
+  }, [result, mtfData, aggregateSentiment, news.length, isBullish, ticker]);
 
   if (loading) {
     return (
@@ -742,18 +783,48 @@ export default function StockDetailPage() {
             </CardContent>
           </Card>
         )}
-        {result.sentiment_score !== undefined && result.sentiment_score !== 0 && (
+        {result.pivot_point !== undefined && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm text-gray-500">Pivot Point</span>
+              </div>
+              <p className="text-xl font-bold text-white">{formatCurrency(result.pivot_point)}</p>
+              <p className="text-xs text-gray-500">
+                R1: {formatCurrency(result.pivot_r1 || 0)} | S1: {formatCurrency(result.pivot_s1 || 0)}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {result.ma_alignment !== undefined && (
+          <Card className="border-gray-800/50 bg-gray-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <LineChart className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-gray-500">EMA Trend</span>
+              </div>
+              <p className={`text-xl font-bold ${result.ma_alignment === 'bullish' ? 'text-emerald-400' : result.ma_alignment === 'bearish' ? 'text-red-400' : 'text-gray-300'}`}>
+                {result.ma_alignment === 'bullish' ? 'Bullish' : result.ma_alignment === 'bearish' ? 'Bearish' : 'Netral'}
+              </p>
+              <p className="text-xs text-gray-500">
+                EMA20: {result.ema20 ? formatCurrency(result.ema20) : '-'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {aggregateSentiment && (
           <Card className="border-gray-800/50 bg-gray-900/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Newspaper className="w-4 h-4 text-teal-400" />
-                <span className="text-sm text-gray-500">Sentimen</span>
+                <span className="text-sm text-gray-500">Sentimen Berita</span>
               </div>
-              <p className="text-xl font-bold text-white">
-                {result.sentiment_label === 'positive' ? 'Positif' : result.sentiment_label === 'negative' ? 'Negatif' : 'Netral'}
+              <p className={`text-xl font-bold ${aggregateSentiment.label === 'positive' ? 'text-emerald-400' : aggregateSentiment.label === 'negative' ? 'text-red-400' : 'text-gray-300'}`}>
+                {aggregateSentiment.label === 'positive' ? 'Positif' : aggregateSentiment.label === 'negative' ? 'Negatif' : 'Netral'}
               </p>
               <p className="text-xs text-gray-500">
-                Score: {result.sentiment_score.toFixed(2)}
+                Skor: {aggregateSentiment.score} | Conf: {(aggregateSentiment.confidence * 100).toFixed(0)}%
               </p>
             </CardContent>
           </Card>
@@ -898,43 +969,76 @@ export default function StockDetailPage() {
       {/* News */}
       <Card className="border-gray-800/50 bg-gray-900/50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Newspaper className="w-4 h-4 text-blue-400" />
-            Berita & Sentimen
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Newspaper className="w-4 h-4 text-blue-400" />
+              Berita & Sentimen Pasar
+            </span>
+            {aggregateSentiment && (
+              <Badge variant={aggregateSentiment.label === 'positive' ? 'success' : aggregateSentiment.label === 'negative' ? 'destructive' : 'outline'}>
+                Sentimen: {aggregateSentiment.label === 'positive' ? 'Positif' : aggregateSentiment.label === 'negative' ? 'Negatif' : 'Netral'}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {newsLoading ? (
             <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              Memuat berita...
+              Memuat berita & analisis sentimen...
             </div>
           ) : news.length > 0 ? (
-            <div className="space-y-2">
-              {news.slice(0, 8).map((item, i) => (
-                <a
-                  key={i}
-                  href={item.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-800/50 transition-colors group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white group-hover:text-cyan-400 transition-colors line-clamp-2">
-                      {item.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-gray-500">{item.publisher}</span>
-                      {item.publishedAt && (
-                        <span className="text-[10px] text-gray-600">
-                          {new Date(item.publishedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                        </span>
+            <div className="space-y-3">
+              {news.slice(0, 8).map((item, i) => {
+                const sLabel = item.sentiment?.label;
+                const badgeColor = sLabel === 'positive' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : sLabel === 'negative' ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                  : 'bg-gray-800 text-gray-400 border-gray-700';
+
+                return (
+                  <a
+                    key={i}
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-3 p-3 rounded-lg border border-gray-800/50 bg-gray-950/40 hover:bg-gray-800/50 transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {sLabel && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeColor}`}>
+                            {sLabel === 'positive' ? 'Positif' : sLabel === 'negative' ? 'Negatif' : 'Netral'}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-500">{item.publisher}</span>
+                        {item.publishedAt && (
+                          <span className="text-[10px] text-gray-600">
+                            {new Date(item.publishedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-white group-hover:text-cyan-400 transition-colors line-clamp-2">
+                        {item.title}
+                      </p>
+                      {item.sentiment && (item.sentiment.positiveWords.length > 0 || item.sentiment.negativeWords.length > 0) && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {item.sentiment.positiveWords.map((w, idx) => (
+                            <span key={`p-${idx}`} className="text-[9px] px-1 py-0.2 bg-emerald-950 text-emerald-300 rounded border border-emerald-800">
+                              +{w}
+                            </span>
+                          ))}
+                          {item.sentiment.negativeWords.map((w, idx) => (
+                            <span key={`n-${idx}`} className="text-[9px] px-1 py-0.2 bg-red-950 text-red-300 rounded border border-red-800">
+                              -{w}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-cyan-400 shrink-0 mt-0.5" />
-                </a>
-              ))}
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-cyan-400 shrink-0 mt-0.5" />
+                  </a>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-4 text-gray-500 text-sm">
@@ -947,3 +1051,4 @@ export default function StockDetailPage() {
     </div>
   );
 }
+

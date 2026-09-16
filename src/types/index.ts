@@ -44,6 +44,17 @@ export interface ScreeningResult {
   adx?: number;
   plus_di?: number;
   minus_di?: number;
+  // Moving Averages & Alignment
+  ema20?: number;
+  ema50?: number;
+  ema200?: number;
+  ma_alignment?: 'bullish' | 'bearish' | 'neutral';
+  // Pivot Points Support & Resistance
+  pivot_point?: number;
+  pivot_r1?: number;
+  pivot_s1?: number;
+  pivot_r2?: number;
+  pivot_s2?: number;
   // Sentiment
   sentiment_score?: number; // -1 to 1
   sentiment_label?: 'positive' | 'negative' | 'neutral';

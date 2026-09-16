@@ -1,4 +1,5 @@
 import { ScreeningResult } from '@/types';
+import { getNewsSentimentFromCache, warmupNewsSentimentCache } from './news-cache';
 
 const TRADINGVIEW_SCANNER_URL = 'https://scanner.tradingview.com/indonesia/scan';
 
@@ -354,7 +355,10 @@ export async function fetchTradingViewScreening(
     const pivotR2 = Math.round((pivotPoint + (high - low)) * 100) / 100;
     const pivotS2 = Math.round((pivotPoint - (high - low)) * 100) / 100;
 
-    const sentimentScore = 0;
+    // Check cached news sentiment (from Google News RSS background cache)
+    const cachedSent = getNewsSentimentFromCache(ticker);
+    const sentimentScore = cachedSent ? cachedSent.score : 0;
+    const sentimentLabel = cachedSent ? cachedSent.label : 'neutral';
 
     const { score, direction } = calculateScore(
       rsi, macd, macdSignal, roc, rvol, atrPercent,
@@ -408,7 +412,7 @@ export async function fetchTradingViewScreening(
       pivot_r2: pivotR2,
       pivot_s2: pivotS2,
       sentiment_score: sentimentScore,
-      sentiment_label: 'neutral',
+      sentiment_label: sentimentLabel,
       max_profit_percent: maxProfitPercent,
       max_profit_nominal: maxProfitNominal,
       max_loss_percent: maxLossPercent,
@@ -421,6 +425,12 @@ export async function fetchTradingViewScreening(
         avg_5d: spikeVs30d,
       },
     });
+  }
+
+  // Trigger background warmup for top 30 liquid tickers
+  if (results.length > 0) {
+    const topTickers = results.slice(0, 30).map((r) => r.ticker);
+    warmupNewsSentimentCache(topTickers);
   }
 
   setCachedData(cacheKey, results);
@@ -510,7 +520,9 @@ export async function fetchSingleStock(
     const pivotR2 = Math.round((pivotPoint + (high - low)) * 100) / 100;
     const pivotS2 = Math.round((pivotPoint - (high - low)) * 100) / 100;
 
-    const sentimentScore = 0;
+    const cachedSent = getNewsSentimentFromCache(ticker);
+    const sentimentScore = cachedSent ? cachedSent.score : 0;
+    const sentimentLabel = cachedSent ? cachedSent.label : 'neutral';
 
     const { score, direction } = calculateScore(
       rsi, macd, macdSignal, roc, rvol, atrPercent,
@@ -563,7 +575,7 @@ export async function fetchSingleStock(
       pivot_r2: pivotR2,
       pivot_s2: pivotS2,
       sentiment_score: sentimentScore,
-      sentiment_label: 'neutral',
+      sentiment_label: sentimentLabel,
       max_profit_percent: maxProfitPercent,
       max_profit_nominal: maxProfitNominal,
       max_loss_percent: maxLossPercent,
